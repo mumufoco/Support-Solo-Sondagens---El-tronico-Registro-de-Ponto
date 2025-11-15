@@ -337,33 +337,81 @@ class TimePunchController extends BaseController
         array $additionalData = []
     ) {
         // Get geolocation if provided
-        $latitude = $this->request->getPost('latitude');
-        $longitude = $this->request->getPost('longitude');
+        $locationLat = $this->request->getPost('location_lat') ?: $this->request->getPost('latitude');
+        $locationLng = $this->request->getPost('location_lng') ?: $this->request->getPost('longitude');
+        $locationAccuracy = $this->request->getPost('location_accuracy') ?: $this->request->getPost('accuracy');
 
         // Validate geolocation if required
         $requireGeolocation = $this->settingModel->get('require_geolocation', false);
 
-        if ($requireGeolocation && (!$latitude || !$longitude)) {
+        if ($requireGeolocation && (!$locationLat || !$locationLng)) {
             return $this->respondError('Geolocalização é obrigatória.', null, 400);
         }
 
+        // Geofence check result
+        $geofenceCheck = [
+            'within' => true,
+            'geofence_name' => null,
+            'distance' => null,
+        ];
+
         // Validate geofence if geolocation provided
-        if ($latitude && $longitude) {
-            $geofenceValid = $this->validateGeofence($latitude, $longitude);
+        if ($locationLat && $locationLng) {
+            // Use GeolocationService for geofence validation
+            $geolocationService = new \App\Services\GeolocationService();
+            $geofenceResult = $geolocationService->validateGeofence((float) $locationLat, (float) $locationLng);
 
-            if (!$geofenceValid) {
-                $this->auditModel->log(
-                    $employeeId,
-                    'PUNCH_FAILED',
-                    'time_punches',
-                    null,
-                    null,
-                    null,
-                    "Tentativa de registro fora da cerca virtual: {$latitude}, {$longitude}",
-                    'warning'
-                );
+            // Check if within geofence
+            if (isset($geofenceResult['geofence_matched']) && $geofenceResult['geofence_matched']) {
+                $geofenceCheck['within'] = true;
+                $geofenceCheck['geofence_name'] = $geofenceResult['geofence']['name'] ?? null;
+            } else {
+                $geofenceCheck['within'] = false;
 
-                return $this->respondError('Você está fora da área permitida para registro de ponto.', null, 403);
+                // Get nearest geofence info
+                if (isset($geofenceResult['nearest_geofence'])) {
+                    $geofenceCheck['distance'] = $geofenceResult['nearest_geofence']['distance_meters'];
+                    $geofenceCheck['nearest_name'] = $geofenceResult['nearest_geofence']['name'];
+                }
+
+                // Check if geofencing is enforced
+                $requireGeofence = $this->settingModel->get('require_geofence', false);
+
+                // If enforced and user didn't confirm, return error with modal data
+                $confirmOutside = $this->request->getPost('confirm_outside_geofence');
+
+                if ($requireGeofence && !$confirmOutside) {
+                    $this->auditModel->log(
+                        $employeeId,
+                        'PUNCH_OUTSIDE_GEOFENCE',
+                        'time_punches',
+                        null,
+                        null,
+                        [
+                            'location' => ['lat' => $locationLat, 'lng' => $locationLng],
+                            'distance' => $geofenceCheck['distance'],
+                        ],
+                        "Tentativa de registro fora da cerca virtual (distância: {$geofenceCheck['distance']}m)",
+                        'warning'
+                    );
+
+                    return $this->respondError(
+                        'Você está fora da área permitida. Confirme para registrar mesmo assim.',
+                        [
+                            'outside_geofence' => true,
+                            'distance' => $geofenceCheck['distance'],
+                            'nearest_geofence' => $geofenceCheck['nearest_name'] ?? 'Desconhecida',
+                            'require_confirmation' => true,
+                        ],
+                        403
+                    );
+                }
+            }
+
+            // Check accuracy warning
+            if ($locationAccuracy && $locationAccuracy > 100) {
+                $additionalData['accuracy_warning'] = true;
+                $additionalData['accuracy_message'] = "Precisão de GPS baixa (±{$locationAccuracy}m). Localização pode estar imprecisa.";
             }
         }
 
