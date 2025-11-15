@@ -493,6 +493,255 @@ class TimePunchController extends BaseController
     }
 
     /**
+     * Generate PDF receipt for punch (Portaria MTE 671/2021)
+     *
+     * @param int $punchId
+     * @return \CodeIgniter\HTTP\Response
+     */
+    public function generateReceipt(int $punchId)
+    {
+        // Load required libraries
+        if (!class_exists('\TCPDF')) {
+            return $this->respondError('TCPDF library not installed.', null, 500);
+        }
+
+        // Get punch data
+        $punch = $this->timePunchModel
+            ->select('time_punches.*, employees.name, employees.cpf, employees.unique_code')
+            ->join('employees', 'employees.id = time_punches.employee_id')
+            ->find($punchId);
+
+        if (!$punch) {
+            return $this->respondError('Registro não encontrado.', null, 404);
+        }
+
+        // Get company settings
+        $companyName = $this->settingModel->get('company_name', 'Empresa XYZ Ltda');
+        $companyCNPJ = $this->settingModel->get('company_cnpj', '00.000.000/0001-00');
+        $companyAddress = $this->settingModel->get('company_address', 'Rua Exemplo, 123 - São Paulo/SP');
+        $inpiRegistry = $this->settingModel->get('inpi_registry', 'BR512024000000');
+
+        // Create PDF
+        $pdf = new \TCPDF('P', 'mm', 'A4', true, 'UTF-8');
+
+        // Set document information
+        $pdf->SetCreator('Sistema de Ponto Eletrônico');
+        $pdf->SetAuthor($companyName);
+        $pdf->SetTitle('Comprovante de Registro de Ponto - NSR ' . str_pad($punch->nsr, 10, '0', STR_PAD_LEFT));
+        $pdf->SetSubject('Comprovante conforme Portaria MTE 671/2021');
+
+        // Remove default header/footer
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+
+        // Set margins
+        $pdf->SetMargins(15, 15, 15);
+        $pdf->SetAutoPageBreak(true, 15);
+
+        // Add page
+        $pdf->AddPage();
+
+        // --- HEADER ---
+        // Company logo (if exists)
+        $logoPath = WRITEPATH . 'uploads/company_logo.png';
+        if (file_exists($logoPath)) {
+            $pdf->Image($logoPath, 15, 15, 30, 0, 'PNG');
+            $pdf->SetY(20);
+        } else {
+            $pdf->SetY(15);
+        }
+
+        // Company name
+        $pdf->SetFont('helvetica', 'B', 16);
+        $pdf->Cell(0, 10, $companyName, 0, 1, 'C');
+
+        $pdf->SetFont('helvetica', '', 10);
+        $pdf->Cell(0, 5, 'CNPJ: ' . $companyCNPJ, 0, 1, 'C');
+        $pdf->Cell(0, 5, $companyAddress, 0, 1, 'C');
+
+        $pdf->Ln(5);
+
+        // --- TITLE ---
+        $pdf->SetFont('helvetica', 'B', 14);
+        $pdf->SetFillColor(0, 102, 204);
+        $pdf->SetTextColor(255, 255, 255);
+        $pdf->Cell(0, 10, 'COMPROVANTE DE REGISTRO DE PONTO ELETRÔNICO', 0, 1, 'C', true);
+        $pdf->SetTextColor(0, 0, 0);
+
+        $pdf->Ln(5);
+
+        // --- BODY ---
+        $pdf->SetFont('helvetica', '', 11);
+
+        // Employee data
+        $pdf->SetFont('helvetica', 'B', 11);
+        $pdf->Cell(0, 7, 'DADOS DO FUNCIONÁRIO', 0, 1);
+        $pdf->SetFont('helvetica', '', 10);
+
+        $pdf->Cell(50, 6, 'Nome:', 0, 0);
+        $pdf->Cell(0, 6, $punch->name, 0, 1);
+
+        $pdf->Cell(50, 6, 'CPF:', 0, 0);
+        $pdf->Cell(0, 6, $punch->cpf, 0, 1);
+
+        $pdf->Cell(50, 6, 'Matrícula:', 0, 0);
+        $pdf->Cell(0, 6, $punch->unique_code, 0, 1);
+
+        $pdf->Ln(3);
+
+        // Punch data
+        $pdf->SetFont('helvetica', 'B', 11);
+        $pdf->Cell(0, 7, 'DADOS DO REGISTRO', 0, 1);
+        $pdf->SetFont('helvetica', '', 10);
+
+        $pdf->Cell(50, 6, 'Data/Hora:', 0, 0);
+        $pdf->Cell(0, 6, date('d/m/Y H:i:s', strtotime($punch->punch_time)), 0, 1);
+
+        $pdf->Cell(50, 6, 'Tipo de Marcação:', 0, 0);
+        $punchTypeLabel = $this->getPunchTypeLabel($punch->punch_type);
+        $pdf->Cell(0, 6, strtoupper($punchTypeLabel), 0, 1);
+
+        $pdf->Cell(50, 6, 'Método:', 0, 0);
+        $methodLabel = $this->getMethodLabel($punch->method);
+        $pdf->Cell(0, 6, $methodLabel, 0, 1);
+
+        $pdf->Cell(50, 6, 'NSR:', 0, 0);
+        $pdf->SetFont('courier', 'B', 10);
+        $pdf->Cell(0, 6, str_pad($punch->nsr, 10, '0', STR_PAD_LEFT), 0, 1);
+
+        $pdf->SetFont('helvetica', '', 10);
+        $pdf->Cell(50, 6, 'Hash SHA-256:', 0, 0);
+        $pdf->SetFont('courier', '', 8);
+        $pdf->MultiCell(0, 6, $punch->hash, 0, 'L');
+
+        $pdf->Ln(3);
+
+        // Geolocation (if available)
+        if (!empty($punch->latitude) && !empty($punch->longitude)) {
+            $pdf->SetFont('helvetica', '', 10);
+            $pdf->Cell(50, 6, 'Localização:', 0, 0);
+            $pdf->Cell(0, 6, sprintf('%.6f, %.6f', $punch->latitude, $punch->longitude), 0, 1);
+        }
+
+        $pdf->Ln(5);
+
+        // --- QR CODE ---
+        $pdf->SetFont('helvetica', 'B', 11);
+        $pdf->Cell(0, 7, 'QR CODE PARA VALIDAÇÃO', 0, 1, 'C');
+
+        // Generate QR Code data
+        $qrData = json_encode([
+            'nsr' => $punch->nsr,
+            'employee_id' => $punch->employee_id,
+            'punch_time' => $punch->punch_time,
+            'hash' => $punch->hash,
+            'validation_url' => base_url('validate-punch/' . $punch->nsr),
+        ]);
+
+        // Add QR Code to PDF
+        $pdf->write2DBarcode($qrData, 'QRCODE,L', 70, $pdf->GetY(), 60, 60, null, 'N');
+
+        $pdf->Ln(65);
+
+        // Validation text
+        $pdf->SetFont('helvetica', 'I', 9);
+        $pdf->MultiCell(0, 5, 'Escaneie o QR Code acima para validar a autenticidade deste comprovante online.', 0, 'C');
+
+        $pdf->Ln(5);
+
+        // --- FOOTER ---
+        $pdf->SetFont('helvetica', '', 8);
+        $pdf->SetTextColor(100, 100, 100);
+
+        $pdf->MultiCell(0, 4, 'Este documento é válido sem assinatura conforme Portaria MTE nº 671/2021.', 0, 'C');
+        $pdf->MultiCell(0, 4, 'Registro INPI: ' . $inpiRegistry, 0, 'C');
+        $pdf->MultiCell(0, 4, 'Validação online: ' . base_url('validate-punch/' . $punch->nsr), 0, 'C');
+
+        $pdf->Ln(2);
+
+        $pdf->SetFont('helvetica', 'I', 7);
+        $pdf->MultiCell(0, 3, 'Sistema de Ponto Eletrônico - Emitido em ' . date('d/m/Y H:i:s'), 0, 'C');
+
+        // Save PDF to storage
+        $year = date('Y', strtotime($punch->punch_time));
+        $month = date('m', strtotime($punch->punch_time));
+
+        $receiptDir = WRITEPATH . "receipts/{$year}/{$month}";
+        if (!is_dir($receiptDir)) {
+            mkdir($receiptDir, 0755, true);
+        }
+
+        $filename = "employee_{$punch->employee_id}_nsr_{$punch->nsr}.pdf";
+        $filepath = $receiptDir . '/' . $filename;
+
+        $pdf->Output($filepath, 'F');
+
+        // Log generation
+        $this->auditModel->log(
+            $punch->employee_id,
+            'RECEIPT_GENERATED',
+            'time_punches',
+            $punchId,
+            null,
+            null,
+            "Comprovante PDF gerado: NSR {$punch->nsr}",
+            'info'
+        );
+
+        // Return download link
+        return $this->respondSuccess([
+            'punch_id' => $punchId,
+            'nsr' => $punch->nsr,
+            'filename' => $filename,
+            'download_url' => base_url("download-receipt/{$year}/{$month}/{$filename}"),
+        ], 'Comprovante gerado com sucesso.');
+    }
+
+    /**
+     * Download receipt PDF
+     */
+    public function downloadReceipt(string $year, string $month, string $filename)
+    {
+        $filepath = WRITEPATH . "receipts/{$year}/{$month}/{$filename}";
+
+        if (!file_exists($filepath)) {
+            throw new \CodeIgniter\Exceptions\PageNotFoundException('Comprovante não encontrado.');
+        }
+
+        return $this->response->download($filepath, null)->setFileName($filename);
+    }
+
+    /**
+     * Helper: Get punch type label
+     */
+    private function getPunchTypeLabel(string $type): string
+    {
+        $labels = [
+            'entrada' => 'ENTRADA',
+            'saida' => 'SAÍDA',
+            'intervalo_inicio' => 'INTERVALO - INÍCIO',
+            'intervalo_fim' => 'INTERVALO - FIM',
+        ];
+
+        return $labels[$type] ?? strtoupper($type);
+    }
+
+    /**
+     * Helper: Get method label
+     */
+    private function getMethodLabel(string $method): string
+    {
+        $labels = [
+            'code' => 'Código Único',
+            'qr_code' => 'QR Code',
+            'facial' => 'Reconhecimento Facial',
+            'fingerprint' => 'Biometria (Digital)',
+        ];
+
+        return $labels[$method] ?? $method;
+    }
+
+    /**
      * Verify punch hash (for auditing)
      */
     public function verifyHash(int $punchId)
