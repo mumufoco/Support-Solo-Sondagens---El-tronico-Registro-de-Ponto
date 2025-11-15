@@ -9,8 +9,17 @@
 2. [Fluxogramas Completos](#2-fluxogramas-completos)
 3. [Estrutura do Projeto](#3-estrutura-do-projeto)
 4. [Comandos Claude Code por Fase](#4-comandos-claude-code-por-fase)
+   - [FASE 0: POC e Validação Técnica](#40-fase-0-poc-e-validação-técnica-semana-1)
+   - [FASE 1-14: Desenvolvimento](#41-fase-1-setup-inicial-semana-2-3)
 5. [Prompts Detalhados](#5-prompts-detalhados)
 6. [Testes e Validação](#6-testes-e-validação)
+7. [Comandos Úteis](#7-comandos-úteis-para-desenvolvimento)
+8. [Boas Práticas](#8-boas-práticas-e-convenções)
+9. [Monitoramento e Manutenção](#9-monitoramento-e-manutenção)
+10. [Riscos e Mitigações](#10-riscos-e-mitigações)
+11. [Roadmap Futuro](#11-roadmap-futuro)
+12. [Contatos e Suporte](#12-contatos-e-suporte)
+13. [Glossário](#13-glossário)
 
 ---
 
