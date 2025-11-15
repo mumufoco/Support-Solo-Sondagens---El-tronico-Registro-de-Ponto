@@ -317,7 +317,159 @@
     });
 
     function testFacial() {
-        alert('Funcionalidade de teste de reconhecimento facial');
+        // Open fullscreen modal for testing
+        const modal = document.createElement('div');
+        modal.id = 'testFacialModal';
+        modal.className = 'modal fade';
+        modal.innerHTML = `
+            <div class="modal-dialog modal-fullscreen">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">
+                            <i class="fas fa-camera me-2"></i>Teste de Reconhecimento Facial
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body text-center position-relative" style="background: #000;">
+                        <div class="position-absolute top-50 start-50 translate-middle" style="width: 80%; max-width: 500px;">
+                            <video id="testFaceVideo" autoplay playsinline class="w-100 rounded" style="max-height: 400px;"></video>
+                            <canvas id="testFaceCanvas" class="d-none"></canvas>
+
+                            <!-- Face Guide Circle -->
+                            <div id="faceGuide" class="position-absolute top-50 start-50 translate-middle"
+                                 style="width: 300px; height: 300px; border: 3px dashed rgba(255,255,255,0.5); border-radius: 50%; pointer-events: none;">
+                            </div>
+
+                            <div id="testResult" class="mt-3"></div>
+
+                            <div class="mt-4 d-grid gap-2">
+                                <button type="button" class="btn btn-lg btn-light" id="startTestCamera">
+                                    <i class="fas fa-video me-2"></i>Iniciar Câmera
+                                </button>
+                                <button type="button" class="btn btn-lg btn-success" id="captureTestFace" disabled>
+                                    <i class="fas fa-camera me-2"></i>Capturar e Testar
+                                </button>
+                            </div>
+
+                            <div class="alert alert-info mt-3 text-start">
+                                <strong>Instruções:</strong><br>
+                                • Posicione seu rosto dentro do círculo<br>
+                                • Mantenha boa iluminação<br>
+                                • Aguarde 2-3 segundos pelo resultado
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+
+        // Setup camera
+        let testStream = null;
+
+        document.getElementById('startTestCamera').addEventListener('click', async function() {
+            try {
+                testStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: 640, height: 480 }
+                });
+                document.getElementById('testFaceVideo').srcObject = testStream;
+                document.getElementById('captureTestFace').disabled = false;
+                this.disabled = true;
+            } catch (err) {
+                document.getElementById('testResult').innerHTML =
+                    '<div class="alert alert-danger">Erro ao acessar câmera: ' + err.message + '</div>';
+            }
+        });
+
+        document.getElementById('captureTestFace').addEventListener('click', function() {
+            const video = document.getElementById('testFaceVideo');
+            const canvas = document.getElementById('testFaceCanvas');
+            const context = canvas.getContext('2d');
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0);
+
+            const imageData = canvas.toDataURL('image/jpeg');
+
+            document.getElementById('testResult').innerHTML =
+                '<div class="alert alert-info"><div class="spinner-border spinner-border-sm me-2"></div>Reconhecendo... Aguarde 2-3 segundos...</div>';
+
+            this.disabled = true;
+
+            fetch('<?= base_url('api/biometric/test') ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': '<?= csrf_hash() ?>'
+                },
+                body: JSON.stringify({ photo: imageData })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (testStream) {
+                    testStream.getTracks().forEach(track => track.stop());
+                }
+
+                if (data.success && data.data.test_passed) {
+                    // Success
+                    document.getElementById('testResult').innerHTML =
+                        '<div class="alert alert-success">' +
+                        '<i class="fas fa-check-circle fa-3x mb-3"></i><br>' +
+                        '<h4>✅ ' + data.message + '</h4>' +
+                        '<p class="mb-0">Similaridade: <strong>' + data.data.similarity_percent + '%</strong></p>' +
+                        '</div>';
+
+                    setTimeout(() => bsModal.hide(), 3000);
+                } else if (data.data && data.data.critical) {
+                    // Critical error
+                    document.getElementById('testResult').innerHTML =
+                        '<div class="alert alert-danger">' +
+                        '<i class="fas fa-exclamation-triangle fa-3x mb-3"></i><br>' +
+                        '<h4>🚨 ' + data.message + '</h4>' +
+                        '</div>';
+
+                    setTimeout(() => {
+                        bsModal.hide();
+                        window.location.reload();
+                    }, 5000);
+                } else {
+                    // Failed
+                    document.getElementById('testResult').innerHTML =
+                        '<div class="alert alert-warning">' +
+                        '<i class="fas fa-times-circle fa-3x mb-3"></i><br>' +
+                        '<h4>⚠️ ' + data.message + '</h4>' +
+                        (data.data && data.data.failures ? '<p>Tentativas falhadas: ' + data.data.failures + '/2</p>' : '') +
+                        '</div>';
+
+                    if (data.data && data.data.disabled) {
+                        setTimeout(() => {
+                            bsModal.hide();
+                            window.location.reload();
+                        }, 4000);
+                    } else {
+                        document.getElementById('captureTestFace').disabled = false;
+                    }
+                }
+            })
+            .catch(error => {
+                document.getElementById('testResult').innerHTML =
+                    '<div class="alert alert-danger">Erro: ' + error.message + '</div>';
+                document.getElementById('captureTestFace').disabled = false;
+            });
+        });
+
+        // Cleanup on modal close
+        modal.addEventListener('hidden.bs.modal', function() {
+            if (testStream) {
+                testStream.getTracks().forEach(track => track.stop());
+            }
+            modal.remove();
+        });
     }
 
     function deleteFacial() {

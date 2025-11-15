@@ -176,6 +176,18 @@ class TimePunchController extends BaseController
      */
     public function punchByFace()
     {
+        // Rate limiting: max 5 facial recognition attempts per minute per IP
+        $throttler = \Config\Services::throttler();
+        $key = 'facial_punch_' . $this->request->getIPAddress();
+
+        if ($throttler->check($key, 5, MINUTE) === false) {
+            return $this->respondError(
+                'Muitas tentativas de reconhecimento facial. Aguarde 1 minuto antes de tentar novamente.',
+                null,
+                429
+            );
+        }
+
         // Validate input
         $rules = [
             'photo'      => 'required',

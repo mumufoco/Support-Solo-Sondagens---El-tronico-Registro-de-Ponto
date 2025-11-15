@@ -366,6 +366,17 @@ class FaceRecognitionController extends BaseController
 
         $photoBase64 = $this->request->getPost('photo');
 
+        // Get current user's face template
+        $faceTemplate = $this->biometricModel
+            ->where('employee_id', $this->currentUser->id)
+            ->where('biometric_type', 'face')
+            ->where('active', true)
+            ->first();
+
+        if (!$faceTemplate) {
+            return $this->respondError('Você não possui biometria facial cadastrada.', null, 404);
+        }
+
         // Call DeepFace API for recognition
         $deepfaceUrl = $this->settingModel->get('deepface_api_url', 'http://localhost:5000');
         $threshold = $this->settingModel->get('deepface_threshold', 0.40);
@@ -387,26 +398,188 @@ class FaceRecognitionController extends BaseController
                 return $this->respondError('Erro ao processar reconhecimento.', null, 500);
             }
 
+            $similarity = $result['similarity'] ?? 0;
+            $similarityPercent = round($similarity * 100, 2);
+
+            // Scenario 1: Rosto não reconhecido
             if (!$result['recognized']) {
+                // Count consecutive failures in audit logs
+                $recentFailures = $this->countRecentTestFailures($this->currentUser->id);
+
+                // Log test failure
+                $this->logAudit(
+                    'BIOMETRIC_TEST_FAILED',
+                    'biometric_templates',
+                    $faceTemplate->id,
+                    null,
+                    ['reason' => 'not_recognized', 'failures' => $recentFailures + 1],
+                    'Teste de reconhecimento facial falhou - rosto não reconhecido'
+                );
+
+                // If 2 or more consecutive failures, disable template
+                if ($recentFailures >= 1) {
+                    $this->biometricModel->update($faceTemplate->id, ['active' => false]);
+
+                    $this->employeeModel->update($this->currentUser->id, [
+                        'has_face_biometric' => false,
+                    ]);
+
+                    // Notify admin
+                    $this->notifyAdminBiometricFailure($this->currentUser->id, 'consecutive_failures');
+
+                    // Log deactivation
+                    $this->logAudit(
+                        'BIOMETRIC_DEACTIVATED',
+                        'biometric_templates',
+                        $faceTemplate->id,
+                        ['active' => true],
+                        ['active' => false],
+                        'Biometria desativada após 2 falhas consecutivas no teste'
+                    );
+
+                    return $this->respondError(
+                        'AVISO: Reconhecimento falhou pela 2ª vez consecutiva. Sua biometria facial foi desativada. ' .
+                        'Por favor, cadastre novamente com uma foto de melhor qualidade.',
+                        ['disabled' => true, 'failures' => $recentFailures + 1],
+                        400
+                    );
+                }
+
                 return $this->respondSuccess([
                     'recognized' => false,
-                ], 'Rosto não reconhecido.');
+                    'test_passed' => false,
+                    'failures' => $recentFailures + 1,
+                ], 'AVISO: Reconhecimento falhou no teste. Tente cadastrar novamente com foto de melhor qualidade.');
             }
 
             $recognizedEmployeeId = (int) $result['employee_id'];
             $isCurrentUser = $recognizedEmployeeId === $this->currentUser->id;
 
+            // Scenario 2: Reconheceu outra pessoa (CRÍTICO)
+            if (!$isCurrentUser) {
+                // Immediately deactivate template
+                $this->biometricModel->update($faceTemplate->id, ['active' => false]);
+
+                $this->employeeModel->update($this->currentUser->id, [
+                    'has_face_biometric' => false,
+                ]);
+
+                // Log critical error
+                $this->logAudit(
+                    'BIOMETRIC_TEST_CRITICAL',
+                    'biometric_templates',
+                    $faceTemplate->id,
+                    null,
+                    [
+                        'expected_employee' => $this->currentUser->id,
+                        'recognized_employee' => $recognizedEmployeeId,
+                        'similarity' => $similarityPercent,
+                    ],
+                    "ERRO CRÍTICO: Sistema reconheceu employee_id {$recognizedEmployeeId} ao invés de {$this->currentUser->id}"
+                );
+
+                // Notify admin immediately
+                $this->notifyAdminBiometricFailure($this->currentUser->id, 'wrong_person_recognized', $recognizedEmployeeId);
+
+                return $this->respondError(
+                    'ERRO CRÍTICO: O sistema reconheceu outra pessoa. Seu cadastro biométrico foi cancelado por segurança. ' .
+                    'Entre em contato com o administrador.',
+                    [
+                        'critical' => true,
+                        'expected_id' => $this->currentUser->id,
+                        'recognized_id' => $recognizedEmployeeId,
+                    ],
+                    400
+                );
+            }
+
+            // Scenario 3: Teste bem-sucedido!
+            // Log success
+            $this->logAudit(
+                'BIOMETRIC_TEST_SUCCESS',
+                'biometric_templates',
+                $faceTemplate->id,
+                null,
+                ['similarity' => $similarityPercent],
+                "Teste de reconhecimento facial bem-sucedido - Similaridade: {$similarityPercent}%"
+            );
+
             return $this->respondSuccess([
                 'recognized' => true,
-                'is_current_user' => $isCurrentUser,
-                'similarity' => $result['similarity'],
+                'is_current_user' => true,
+                'test_passed' => true,
+                'similarity' => $similarity,
+                'similarity_percent' => $similarityPercent,
                 'distance' => $result['distance'],
-            ], $isCurrentUser ? 'Reconhecimento bem-sucedido!' : 'Reconhecido como outro usuário.');
+            ], "✅ Teste bem-sucedido! Similaridade: {$similarityPercent}%");
 
         } catch (\Exception $e) {
             log_message('error', 'DeepFace recognition test error: ' . $e->getMessage());
 
             return $this->respondError('Erro ao conectar com serviço de reconhecimento facial.', null, 500);
+        }
+    }
+
+    /**
+     * Count recent test failures for employee
+     */
+    protected function countRecentTestFailures(int $employeeId): int
+    {
+        $db = \Config\Database::connect();
+
+        // Count BIOMETRIC_TEST_FAILED in last 24 hours since last success
+        $lastSuccess = $db->table('audit_logs')
+            ->where('user_id', $employeeId)
+            ->where('action', 'BIOMETRIC_TEST_SUCCESS')
+            ->orderBy('created_at', 'DESC')
+            ->limit(1)
+            ->get()
+            ->getRow();
+
+        $query = $db->table('audit_logs')
+            ->where('user_id', $employeeId)
+            ->where('action', 'BIOMETRIC_TEST_FAILED');
+
+        if ($lastSuccess) {
+            $query->where('created_at >', $lastSuccess->created_at);
+        } else {
+            // If no success yet, count failures in last 24 hours
+            $query->where('created_at >', date('Y-m-d H:i:s', strtotime('-24 hours')));
+        }
+
+        return $query->countAllResults();
+    }
+
+    /**
+     * Notify admin about biometric failure
+     */
+    protected function notifyAdminBiometricFailure(int $employeeId, string $reason, ?int $recognizedAs = null): void
+    {
+        $employee = $this->employeeModel->find($employeeId);
+
+        if (!$employee) {
+            return;
+        }
+
+        $message = match ($reason) {
+            'consecutive_failures' => "Biometria facial de {$employee->name} (ID: {$employeeId}) foi desativada após 2 falhas consecutivas no teste.",
+            'wrong_person_recognized' => "CRÍTICO: Biometria facial de {$employee->name} (ID: {$employeeId}) reconheceu outra pessoa (ID: {$recognizedAs}). Cadastro cancelado.",
+            default => "Falha no teste de biometria facial para {$employee->name} (ID: {$employeeId}).",
+        };
+
+        // Create notification for all admins
+        $admins = $this->employeeModel->getByRole('admin');
+
+        $notificationModel = new \App\Models\NotificationModel();
+
+        foreach ($admins as $admin) {
+            $notificationModel->insert([
+                'employee_id' => $admin->id,
+                'title' => $reason === 'wrong_person_recognized' ? '🚨 Alerta de Segurança Biométrica' : '⚠️ Falha em Teste Biométrico',
+                'message' => $message,
+                'type' => $reason === 'wrong_person_recognized' ? 'critical' : 'warning',
+                'read' => false,
+            ]);
         }
     }
 
