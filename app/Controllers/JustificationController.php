@@ -124,11 +124,44 @@ class JustificationController extends BaseController
 
         // Validation rules
         $rules = [
-            'date' => 'required|valid_date',
-            'type' => 'required|in_list[absence,late,early_leave,missing_punch,other]',
-            'reason' => 'required|min_length[10]|max_length[1000]',
-            'attachment' => 'permit_empty|uploaded[attachment]|max_size[attachment,5120]|ext_in[attachment,pdf,jpg,jpeg,png]',
+            'justification_date' => [
+                'rules' => 'required|valid_date',
+                'errors' => [
+                    'required' => 'A data é obrigatória.',
+                    'valid_date' => 'Data inválida.',
+                ]
+            ],
+            'justification_type' => [
+                'rules' => 'required|in_list[falta,atraso,saida-antecipada]',
+                'errors' => [
+                    'required' => 'O tipo de justificativa é obrigatório.',
+                    'in_list' => 'Tipo de justificativa inválido.',
+                ]
+            ],
+            'category' => [
+                'rules' => 'required|in_list[doenca,compromisso-pessoal,emergencia-familiar,outro]',
+                'errors' => [
+                    'required' => 'A categoria é obrigatória.',
+                    'in_list' => 'Categoria inválida.',
+                ]
+            ],
+            'reason' => [
+                'rules' => 'required|min_length[50]|max_length[500]',
+                'errors' => [
+                    'required' => 'O motivo é obrigatório.',
+                    'min_length' => 'O motivo deve ter no mínimo 50 caracteres.',
+                    'max_length' => 'O motivo deve ter no máximo 500 caracteres.',
+                ]
+            ],
         ];
+
+        // Validate date is not in future
+        $justificationDate = $this->request->getPost('justification_date');
+        if ($justificationDate && strtotime($justificationDate) > strtotime(date('Y-m-d'))) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Não é permitido justificar datas futuras.');
+        }
 
         if (!$this->validate($rules)) {
             return redirect()->back()
@@ -136,39 +169,134 @@ class JustificationController extends BaseController
                 ->with('errors', $this->validator->getErrors());
         }
 
-        // Handle file upload
-        $attachmentPath = null;
-        $file = $this->request->getFile('attachment');
+        // Handle multiple file uploads (max 3)
+        $files = $this->request->getFiles();
+        $attachmentPaths = [];
+        $uploadErrors = [];
 
-        if ($file && $file->isValid()) {
-            $newName = $file->getRandomName();
-            $file->move(WRITEPATH . 'uploads/justifications', $newName);
-            $attachmentPath = 'uploads/justifications/' . $newName;
+        if (isset($files['attachments'])) {
+            $uploadedFiles = $files['attachments'];
+            $fileCount = 0;
+
+            foreach ($uploadedFiles as $file) {
+                if ($file->isValid() && !$file->hasMoved()) {
+                    $fileCount++;
+
+                    // Max 3 files
+                    if ($fileCount > 3) {
+                        $uploadErrors[] = 'Máximo de 3 arquivos permitidos.';
+                        break;
+                    }
+
+                    // Validate file size (5MB max)
+                    if ($file->getSize() > 5 * 1024 * 1024) {
+                        $uploadErrors[] = "Arquivo '{$file->getName()}' excede 5MB.";
+                        continue;
+                    }
+
+                    // Validate file type
+                    $allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png'];
+                    if (!in_array($file->getExtension(), $allowedExtensions)) {
+                        $uploadErrors[] = "Tipo de arquivo '{$file->getExtension()}' não permitido. Use: PDF, JPG ou PNG.";
+                        continue;
+                    }
+
+                    // Create directory structure: YYYY/MM/employee_id/
+                    $year = date('Y');
+                    $month = date('m');
+                    $uploadPath = WRITEPATH . "uploads/justifications/{$year}/{$month}/{$employee['id']}";
+
+                    if (!is_dir($uploadPath)) {
+                        mkdir($uploadPath, 0755, true);
+                    }
+
+                    // Generate unique filename
+                    $newName = uniqid() . '_' . $file->getRandomName();
+
+                    // Move file
+                    if ($file->move($uploadPath, $newName)) {
+                        $attachmentPaths[] = "uploads/justifications/{$year}/{$month}/{$employee['id']}/{$newName}";
+                    } else {
+                        $uploadErrors[] = "Erro ao fazer upload de '{$file->getName()}'.";
+                    }
+                }
+            }
+        }
+
+        // Return errors if any upload failed
+        if (!empty($uploadErrors)) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', implode('<br>', $uploadErrors));
+        }
+
+        // Determine status based on role
+        // Gestor/Admin can approve directly when creating for themselves
+        $status = 'pendente';
+        $approvedBy = null;
+        $approvedAt = null;
+
+        if (in_array($employee['role'], ['admin', 'gestor'])) {
+            $status = 'aprovado';
+            $approvedBy = $employee['id'];
+            $approvedAt = date('Y-m-d H:i:s');
         }
 
         // Create justification
         $data = [
             'employee_id' => $employee['id'],
-            'date' => $this->request->getPost('date'),
-            'type' => $this->request->getPost('type'),
+            'justification_date' => $justificationDate,
+            'justification_type' => $this->request->getPost('justification_type'),
+            'category' => $this->request->getPost('category'),
             'reason' => $this->request->getPost('reason'),
-            'attachment_path' => $attachmentPath,
-            'status' => 'pending',
+            'attachments' => $attachmentPaths, // Model will encode to JSON
+            'status' => $status,
+            'approved_by' => $approvedBy,
+            'approved_at' => $approvedAt,
+            'submitted_by' => $employee['id'],
         ];
 
         $justificationId = $this->justificationModel->insert($data);
 
         if (!$justificationId) {
+            // Delete uploaded files on error
+            foreach ($attachmentPaths as $path) {
+                if (file_exists(WRITEPATH . $path)) {
+                    unlink(WRITEPATH . $path);
+                }
+            }
+
             return redirect()->back()
                 ->withInput()
                 ->with('error', 'Erro ao criar justificativa.');
         }
 
-        // Notify managers
-        $this->notifyManagers($employee, $justificationId);
+        // Log in audit
+        if (class_exists('\App\Models\AuditLogModel')) {
+            $auditModel = new \App\Models\AuditLogModel();
+            $auditModel->log(
+                $employee['id'],
+                'JUSTIFICATION_CREATED',
+                'justifications',
+                $justificationId,
+                null,
+                $data,
+                "Justificativa criada para {$justificationDate} (tipo: {$data['justification_type']})",
+                'info'
+            );
+        }
+
+        // Notify managers if pending
+        if ($status === 'pendente') {
+            $this->notifyManagers($employee, $justificationId);
+        }
+
+        $message = $status === 'aprovado'
+            ? 'Justificativa criada e aprovada automaticamente.'
+            : 'Justificativa enviada com sucesso! Aguarde aprovação.';
 
         return redirect()->to('/justifications')
-            ->with('success', 'Justificativa enviada com sucesso! Aguarde aprovação.');
+            ->with('success', $message);
     }
 
     /**
