@@ -1,0 +1,153 @@
+<?php
+
+namespace App\Models;
+
+use CodeIgniter\Model;
+
+class SettingModel extends Model
+{
+    protected $table            = 'settings';
+    protected $primaryKey       = 'id';
+    protected $useAutoIncrement = true;
+    protected $returnType       = 'object';
+    protected $useSoftDeletes   = false;
+    protected $protectFields    = true;
+    protected $allowedFields    = [
+        'key',
+        'value',
+        'type',
+        'group',
+        'description',
+        'editable',
+    ];
+
+    // Dates
+    protected $useTimestamps = true;
+    protected $dateFormat    = 'datetime';
+    protected $createdField  = 'created_at';
+    protected $updatedField  = 'updated_at';
+
+    // Validation
+    protected $validationRules = [
+        'key'   => 'required|is_unique[settings.key,id,{id}]',
+        'type'  => 'required|in_list[string,integer,boolean,json,encrypted]',
+        'group' => 'required',
+    ];
+
+    protected $validationMessages = [];
+    protected $skipValidation       = false;
+    protected $cleanValidationRules = true;
+
+    /**
+     * Get setting value by key
+     */
+    public function get(string $key, $default = null)
+    {
+        $setting = $this->where('key', $key)->first();
+
+        if (!$setting) {
+            return $default;
+        }
+
+        return $this->castValue($setting->value, $setting->type);
+    }
+
+    /**
+     * Set setting value
+     */
+    public function set(string $key, $value, ?string $type = null): bool
+    {
+        $existing = $this->where('key', $key)->first();
+
+        $data = [
+            'key'   => $key,
+            'value' => is_array($value) ? json_encode($value) : (string) $value,
+            'type'  => $type ?? ($existing->type ?? 'string'),
+        ];
+
+        if ($existing) {
+            return $this->update($existing->id, $data);
+        }
+
+        return $this->insert($data) !== false;
+    }
+
+    /**
+     * Get all settings by group
+     */
+    public function getByGroup(string $group): array
+    {
+        $settings = $this->where('group', $group)->findAll();
+        $result = [];
+
+        foreach ($settings as $setting) {
+            $result[$setting->key] = $this->castValue($setting->value, $setting->type);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Get all settings as array
+     */
+    public function getAll(): array
+    {
+        $settings = $this->findAll();
+        $result = [];
+
+        foreach ($settings as $setting) {
+            $result[$setting->key] = $this->castValue($setting->value, $setting->type);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Cast value to proper type
+     */
+    private function castValue($value, string $type)
+    {
+        switch ($type) {
+            case 'integer':
+                return (int) $value;
+
+            case 'boolean':
+                return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+
+            case 'json':
+                return json_decode($value, true);
+
+            case 'encrypted':
+                // TODO: Implement decryption
+                return $value;
+
+            default:
+                return $value;
+        }
+    }
+
+    /**
+     * Get editable settings
+     */
+    public function getEditable(): array
+    {
+        return $this->where('editable', true)->findAll();
+    }
+
+    /**
+     * Update multiple settings at once
+     */
+    public function updateMany(array $settings): bool
+    {
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        foreach ($settings as $key => $value) {
+            $this->set($key, $value);
+        }
+
+        $db->transComplete();
+
+        return $db->transStatus();
+    }
+}
