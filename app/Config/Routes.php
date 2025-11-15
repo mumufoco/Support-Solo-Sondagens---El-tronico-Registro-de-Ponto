@@ -132,13 +132,28 @@ $routes->group('reports', ['filter' => 'auth'], static function ($routes) {
 
 /*
  * --------------------------------------------------------------------
- * Chat Routes
+ * Chat Routes (WebSocket Real-time Chat)
  * --------------------------------------------------------------------
  */
 $routes->group('chat', ['filter' => 'auth'], static function ($routes) {
-    $routes->get('/', 'Chat\ChatController::index');
-    $routes->get('history/(:num)', 'Chat\ChatController::history/$1');
-    $routes->post('send', 'Chat\ChatController::send');
+    // Main chat interface
+    $routes->get('/', 'ChatController::index');
+
+    // Room operations
+    $routes->get('room/(:num)', 'ChatController::room/$1');
+    $routes->get('room/(:num)/settings', 'ChatController::roomSettings/$1');
+
+    // Create new chats
+    $routes->get('new/(:num)', 'ChatController::newChat/$1');
+    $routes->get('group/create', 'ChatController::createGroup');
+    $routes->post('group/store', 'ChatController::storeGroup');
+
+    // Member management
+    $routes->post('room/(:num)/add-member', 'ChatController::addMember/$1');
+    $routes->post('room/(:num)/remove-member', 'ChatController::removeMember/$1');
+
+    // Search
+    $routes->get('room/(:num)/search', 'ChatController::search/$1');
 });
 
 /*
@@ -195,4 +210,33 @@ $routes->group('api', ['filter' => 'cors'], static function ($routes) {
     // DeepFace proxy (internal use)
     $routes->post('deepface/enroll', 'Api\ApiController::deepfaceEnroll');
     $routes->post('deepface/recognize', 'Api\ApiController::deepfaceRecognize');
+
+    /*
+     * Chat API Routes (RESTful)
+     */
+    $routes->group('chat', ['filter' => 'api-auth'], static function ($routes) {
+        // Rooms
+        $routes->get('rooms', 'API\ChatAPIController::getRooms');
+        $routes->post('rooms/private', 'API\ChatAPIController::createPrivateRoom');
+        $routes->post('rooms/group', 'API\ChatAPIController::createGroupRoom');
+
+        // Room Messages
+        $routes->get('rooms/(:num)/messages', 'API\ChatAPIController::getMessages/$1');
+        $routes->post('rooms/(:num)/messages', 'API\ChatAPIController::sendMessage/$1');
+        $routes->post('rooms/(:num)/read', 'API\ChatAPIController::markAsRead/$1');
+        $routes->get('rooms/(:num)/search', 'API\ChatAPIController::searchMessages/$1');
+
+        // Room Members
+        $routes->get('rooms/(:num)/members', 'API\ChatAPIController::getMembers/$1');
+        $routes->post('rooms/(:num)/members', 'API\ChatAPIController::addMember/$1');
+        $routes->delete('rooms/(:num)/members/(:num)', 'API\ChatAPIController::removeMember/$1/$2');
+
+        // Messages
+        $routes->put('messages/(:num)', 'API\ChatAPIController::editMessage/$1');
+        $routes->delete('messages/(:num)', 'API\ChatAPIController::deleteMessage/$1');
+        $routes->post('messages/(:num)/reactions', 'API\ChatAPIController::addReaction/$1');
+
+        // Online Users
+        $routes->get('online', 'API\ChatAPIController::getOnlineUsers');
+    });
 });
