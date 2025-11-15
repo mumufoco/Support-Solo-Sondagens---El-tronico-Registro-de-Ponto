@@ -28,23 +28,44 @@ Desenvolver aplicativo web de ponto eletrônico para empresas brasileiras (20-30
 Backend:      CodeIgniter 4 (PHP 8.1+)
 Frontend:     HTML5, JavaScript, Bootstrap 5
 Banco:        MySQL 8.0+
-Biometria:    CompreFace (Docker) + SourceAFIS
+Cache/Queue:  Redis 7.0+ (filas, cache, sessões)
+Biometria:    CompreFace (Docker) - facial recognition
 Mapas:        OpenStreetMap + Leaflet.js
-Servidor:     VPS Ubuntu 22.04 + Docker
+WebSocket:    Workerman (PHP) para chat em tempo real
+Servidor:     VPS Ubuntu 22.04 + Docker + Docker Compose
 ```
 
-### 1.3 Módulos Principais
+### 1.2.1 Justificativa das Escolhas
+
+- **Redis**: Gerenciamento de filas assíncronas, cache de alta performance e sessões distribuídas
+- **CompreFace**: Solução open-source para reconhecimento facial, evita custos de APIs cloud
+- **Workerman**: WebSocket nativo em PHP, sem necessidade de Node.js adicional
+- **Docker**: Isola serviços e facilita deployment em produção
+
+### 1.3 Módulos Principais (MVP - v1.0)
 
 1. **Autenticação** (Login/Registro/Perfis)
-2. **Registro de Ponto** (Código/QR/Facial/Biometria)
-3. **Geolocalização** (Cerca virtual)
+2. **Registro de Ponto** (Código/QR/Facial) - *Biometria digital movida para v2.0*
+3. **Geolocalização** (Cerca virtual com tolerância)
 4. **Justificativas** (Faltas/Atrasos + Anexos)
-5. **Folha de Ponto** (Cálculo automático)
-6. **Relatórios** (Exportação/Visualização)
-7. **Chat Interno** (WebSocket)
-8. **Configurações** (Admin/APIs)
-9. **Advertências** (Assinatura digital)
-10. **LGPD** (Consentimentos/Audit)
+5. **Folha de Ponto** (Cálculo automático com validações CLT)
+6. **Relatórios** (Exportação PDF/Excel/CSV)
+7. **Chat Interno** (WebSocket com fallback HTTP)
+8. **Configurações** (Admin/APIs/Integrações)
+9. **Advertências** (Assinatura digital opcional)
+10. **LGPD** (Consentimentos/Audit/Portabilidade)
+
+### 1.4 Timeline Geral do Projeto
+
+**Duração Total:** 26-30 semanas (6-7 meses)
+
+- **FASE 0:** POC e Validação Técnica (1 semana)
+- **FASES 1-3:** Setup e Core Features (6 semanas)
+- **FASES 4-6:** Integrações Complexas (6 semanas)
+- **FASES 7-9:** Features Avançadas (6 semanas)
+- **FASES 10-12:** LGPD e Compliance (6 semanas)
+- **FASES 13-14:** Testes e Deploy (4-6 semanas)
+- **Buffer:** 3-5 semanas para imprevistos e ajustes
 
 ---
 
@@ -826,7 +847,62 @@ ponto-eletronico/
 
 ## 4. COMANDOS CLAUDE CODE POR FASE
 
-### 4.1 FASE 1: Setup Inicial (Semana 1-2)
+### 4.0 FASE 0: POC e Validação Técnica (Semana 1)
+
+**Objetivo:** Validar premissas técnicas críticas antes do desenvolvimento completo
+
+**POC 1: Validar CompreFace para Reconhecimento Facial**
+
+```bash
+claude code "Crie um POC para validar o CompreFace. Tarefas: 1) Configure docker-compose mínimo com CompreFace (compreface-postgres, compreface-api). 2) Crie script PHP simples que: a) Envia 3 fotos de teste para cadastro via API, b) Tenta reconhecer a mesma pessoa, c) Mede taxa de sucesso e similaridade. 3) Teste com diferentes condições: boa iluminação, pouca luz, ângulos variados. 4) Documente resultados: taxa de reconhecimento, falsos positivos/negativos, tempo de resposta. 5) Defina threshold ideal (recomendado: 0.75-0.85). Critério de sucesso: >90% de reconhecimento em condições normais."
+```
+
+**POC 2: Validar Geolocalização HTML5**
+
+```bash
+claude code "Crie POC para validar precisão de geolocalização. Tarefas: 1) Página HTML simples com botão 'Capturar Localização'. 2) Use navigator.geolocation.getCurrentPosition() com enableHighAccuracy=true. 3) Capture: latitude, longitude, accuracy. 4) Teste em 3 cenários: outdoor (céu aberto), indoor (escritório), dispositivos diferentes (desktop, mobile). 5) Para cada teste, registre: coordenadas, precisão (metros), tempo de resposta. 6) Implemente fallback: se accuracy > 100m, solicite nova tentativa. Critério de sucesso: precisão < 50m em 80% dos testes outdoor."
+```
+
+**POC 3: Setup Docker Compose Completo**
+
+```bash
+claude code "Crie docker-compose.yml completo para ambiente de desenvolvimento. Serviços: 1) nginx (porta 80) - proxy reverso. 2) php-fpm (8.1-fpm-alpine) - com extensões: pdo_mysql, redis, gd, sodium. 3) mysql (8.0) - com persistência. 4) redis (7-alpine) - para cache e filas. 5) compreface (via sub-compose). Configure: volumes para persistência, networks isoladas, healthchecks, variáveis de ambiente via .env. Teste: suba todos serviços e valide comunicação entre eles. Critério de sucesso: todos serviços healthy em < 2 minutos."
+```
+
+**POC 4: Teste de Performance de Queue com Redis**
+
+```bash
+claude code "Crie POC de sistema de filas com Redis. Tarefas: 1) Instale predis/predis via Composer. 2) Crie QueueService.php que: a) push() - adiciona job à fila Redis, b) pop() - remove job da fila, c) process() - processa job. 3) Crie Worker.php que processa 100 jobs em loop. 4) Teste performance: a) Adicione 1000 jobs à fila, b) Processe com 1 worker, meça tempo, c) Processe com 3 workers paralelos, meça tempo. 5) Documente: throughput (jobs/segundo), latência média. Critério de sucesso: processar > 50 jobs/segundo com 1 worker."
+```
+
+**POC 5: Validar Cálculo de Distância Haversine**
+
+```bash
+claude code "Crie POC para validar cálculo de distância geográfica. Tarefas: 1) Implemente função calculateDistance($lat1, $lng1, $lat2, $lng2) usando fórmula de Haversine. 2) Crie testes com coordenadas conhecidas: a) Distância entre São Paulo e Rio de Janeiro (~360km), b) Distância entre dois pontos a 100m, c) Distância entre dois pontos a 1km. 3) Compare resultados com Google Maps Distance Matrix API (para validação). 4) Teste precisão: margem de erro deve ser < 1%. Critério de sucesso: precisão de 99% comparado com referência."
+```
+
+**Entregáveis da FASE 0:**
+- ✅ Relatório de POC do CompreFace (taxa de sucesso, threshold recomendado)
+- ✅ Relatório de POC de Geolocalização (precisão por cenário)
+- ✅ Docker Compose funcional com todos os serviços
+- ✅ Benchmarks de performance da fila Redis
+- ✅ Validação de cálculos geográficos
+
+**Critérios de Go/No-Go:**
+- CompreFace: > 90% de reconhecimento em condições normais
+- Geolocalização: < 50m de precisão em 80% dos casos
+- Docker: Todos serviços healthy em < 2 minutos
+- Redis Queue: > 50 jobs/segundo
+- Haversine: 99% de precisão
+
+**Se POC Falhar:**
+- CompreFace < 85%: Considerar AWS Rekognition ou Azure Face API
+- GPS < 100m: Implementar registro manual com justificativa obrigatória
+- Performance: Otimizar ou considerar RabbitMQ para filas
+
+---
+
+### 4.1 FASE 1: Setup Inicial (Semana 2-3)
 
 **Comando 1: Criar estrutura base do projeto**
 
@@ -1673,26 +1749,197 @@ tar -czf configs_$(date +%Y%m%d).tar.gz .env app/Config/
 
 ---
 
-## 10. ROADMAP FUTURO
+## 10. RISCOS E MITIGAÇÕES
 
-### 10.1 Versão 2.0 (Futuro)
+### 10.1 Matriz de Riscos
 
-- **Integração com folha de pagamento** (TOTVS, SAP, outros)
-- **App mobile nativo** (React Native) com registro offline
-- **Reconhecimento de íris** (biometria adicional)
-- **IA para detecção de anomalias** (padrões suspeitos)
-- **Multi-tenancy** (suportar múltiplas empresas)
-- **SSO** (Single Sign-On) com SAML/OAuth
-- **API pública** para integrações
-- **Análise preditiva** de absenteísmo
-- **Gamificação** (badges, rankings de pontualidade)
-- **Dashboard executivo** com BI
+| # | Risco | Probabilidade | Impacto | Mitigação | Contingência |
+|---|-------|---------------|---------|-----------|--------------|
+| 1 | **CompreFace não alcançar 80% de precisão** | Alta | Alto | POC antecipada na FASE 0 para validar | Fallback para AWS Rekognition ou Azure Face API (custo adicional) |
+| 2 | **GPS impreciso em ambientes fechados** | Alta | Médio | Permitir registro com flag "fora da área" + justificativa | Implementar WiFi positioning ou registro manual obrigatório |
+| 3 | **Certificado ICP-Brasil muito caro** | Média | Alto | Iniciar com assinatura digital simples (timestamp + hash) | Migrar para ICP-Brasil na v2.0 quando houver budget |
+| 4 | **Performance com 500 funcionários simultâneos** | Média | Alto | Load testing na FASE 14 com Apache Bench | Escalar horizontalmente com Redis Session + Load Balancer |
+| 5 | **Falha de compliance LGPD** | Baixa | Crítico | Code review jurídico antes de produção | Contratar consultoria especializada em LGPD |
+| 6 | **WebSocket não escalar adequadamente** | Média | Médio | Usar Workerman com múltiplos workers | Socket.io com Redis adapter para distribuição |
+| 7 | **Dependência de internet para GPS** | Alta | Baixo | Cache de último local conhecido | Modo offline com sincronização posterior |
+| 8 | **Vazamento de dados biométricos** | Baixa | Crítico | Criptografia AES-256 + acesso restrito | Seguro cyber, notificação ANPD em 24h |
+| 9 | **CompreFace consumir muita RAM** | Média | Médio | Limitar API_JAVA_OPTS=-Xmx4g inicialmente | Servidor dedicado ou upgrade de RAM |
+| 10 | **Mudanças na Portaria MTE 671** | Baixa | Alto | Monitorar portal oficial do MTE mensalmente | Arquitetura modular permite ajustes rápidos |
+
+### 10.2 Planos de Contingência Detalhados
+
+#### Contingência 1: CompreFace com baixa precisão
+
+**Se**: Taxa de reconhecimento < 85% no POC
+
+**Opções**:
+1. **AWS Rekognition** (Pay-as-you-go)
+   - Custo: ~$1/1000 imagens
+   - Setup: 1 semana
+   - Precisão: ~98%
+
+2. **Azure Face API** (Cognitivo Services)
+   - Custo: ~$1.50/1000 transações
+   - Setup: 1 semana
+   - Precisão: ~97%
+
+3. **Remover reconhecimento facial**
+   - Usar apenas Código + QR Code
+   - Timeline: -2 semanas
+   - Custo: R$ 0
+
+**Decisão**: Aguardar resultado do POC na FASE 0
+
+#### Contingência 2: GPS impreciso (>100m)
+
+**Se**: Precisão GPS < 100m em mais de 30% dos casos
+
+**Opções**:
+1. **WiFi Positioning** (Google Geolocation API)
+   - Custo: $0.50/1000 requests
+   - Precisão: 20-40m em áreas urbanas
+   - Setup: 3 dias
+
+2. **Registro manual com justificativa obrigatória**
+   - Funcionário informa local manualmente
+   - Gestor aprova ou rejeita
+   - Custo: R$ 0
+
+3. **Beacons Bluetooth** (futuro)
+   - Hardware adicional por local
+   - Precisão: < 5m
+   - Custo: ~R$ 200/beacon
+
+**Decisão**: Opção 2 como fallback imediato, avaliar opção 1 se orçamento permitir
+
+#### Contingência 3: ICP-Brasil inviável financeiramente
+
+**Se**: Custo de certificado A3 > R$ 500/ano por empresa
+
+**Opções**:
+1. **Assinatura digital simples**
+   - Timestamp RFC 3161 + Hash SHA-256
+   - Válido para fins internos
+   - Custo: R$ 0
+   - Validade legal: Limitada
+
+2. **Assinatura qualificada futura**
+   - Implementar arquitetura que permita upgrade
+   - Migrar quando cliente tiver budget
+   - Custo inicial: R$ 0
+
+**Decisão**: Opção 1 para MVP, opção 2 como roadmap
+
+#### Contingência 4: Performance insuficiente
+
+**Se**: Time to Interactive > 5s ou response time > 1s
+
+**Ações imediatas**:
+1. **Otimização de queries** (1-2 dias)
+   - Adicionar índices compostos
+   - Refatorar queries N+1
+   - Cache de queries repetidas
+
+2. **CDN para assets** (1 dia)
+   - Cloudflare Free Tier
+   - Cache de JS/CSS/imagens
+   - Custo: R$ 0
+
+3. **Redis Object Cache** (2 dias)
+   - Cachear configurações por 1h
+   - Cachear sessões
+   - Cachear queries frequentes
+
+4. **Escala horizontal** (1 semana)
+   - Load Balancer Nginx
+   - Múltiplas instâncias PHP-FPM
+   - Redis para sessões compartilhadas
+
+**Decisão**: Ações 1-3 primeiro, ação 4 apenas se necessário
+
+### 10.3 Indicadores de Alerta Precoce
+
+Configure monitoring para detectar problemas antes que afetem usuários:
+
+| Métrica | Threshold Alerta | Threshold Crítico | Ação |
+|---------|------------------|-------------------|------|
+| Response Time (p95) | > 1s | > 3s | Investigar queries lentas |
+| Error Rate | > 1% | > 5% | Rollback último deploy |
+| CPU Usage | > 70% | > 90% | Escalar ou otimizar |
+| RAM Usage | > 80% | > 95% | Upgrade ou investigar memory leak |
+| Disk Usage | > 80% | > 95% | Limpar logs ou upgrade |
+| CompreFace Accuracy | < 85% | < 75% | Revisar fotos de cadastro |
+| Queue Size (Redis) | > 1000 | > 5000 | Adicionar workers |
+| Failed Jobs | > 50/h | > 200/h | Investigar erros |
 
 ---
 
-## 11. CONTATOS E SUPORTE
+## 11. ROADMAP FUTURO
 
-### 11.1 Equipe
+### 11.1 Versão 2.0 (Futuro)
+
+**Features Planejadas:**
+
+- **Biometria por impressão digital** (SourceAFIS + leitores USB)
+  - Requer hardware adicional (~R$ 150/leitor)
+  - Maior precisão que reconhecimento facial
+  - Ideal para ambientes industriais
+
+- **Integração com folha de pagamento** (TOTVS, SAP, Protheus, Domínio)
+  - Exportação automática de horas trabalhadas
+  - Sincronização bidirecional de cadastros
+  - API REST padronizada
+
+- **App mobile nativo** (React Native/Flutter)
+  - Registro offline com sincronização
+  - Push notifications nativas
+  - Biometria do dispositivo (Touch ID/Face ID)
+  - GPS de alta precisão
+
+- **IA para detecção de anomalias**
+  - Padrões suspeitos de marcação
+  - Previsão de absenteísmo
+  - Recomendações de escala
+
+- **Multi-tenancy**
+  - Suportar múltiplas empresas em uma instalação
+  - Isolamento completo de dados
+  - Customização por tenant
+
+- **SSO** (Single Sign-On)
+  - SAML 2.0 / OAuth 2.0
+  - Integração com AD/LDAP
+  - Login único corporativo
+
+- **API pública documentada**
+  - RESTful API completa
+  - Webhooks para eventos
+  - SDKs em PHP/Python/JavaScript
+
+- **Dashboard executivo com BI**
+  - Indicadores de RH (turnover, absenteísmo)
+  - Gráficos interativos com Plotly.js
+  - Exportação para Power BI/Tableau
+
+- **Gamificação**
+  - Badges por pontualidade
+  - Rankings mensais
+  - Sistema de recompensas
+
+### 11.2 Versão 1.1 (Quick Wins - 6-12 meses após v1.0)
+
+- ✅ Notificações push via Firebase
+- ✅ Temas personalizados (dark mode)
+- ✅ Exportação de relatórios agendados
+- ✅ Integração com Slack/Teams para alertas
+- ✅ Backup automático para S3/Google Cloud
+- ✅ API de importação de colaboradores via CSV/Excel
+
+---
+
+## 12. CONTATOS E SUPORTE
+
+### 12.1 Equipe
 
 - **Tech Lead:** [Nome] - [email]
 - **Backend Developer:** [Nome] - [email]
@@ -1700,7 +1947,7 @@ tar -czf configs_$(date +%Y%m%d).tar.gz .env app/Config/
 - **QA Engineer:** [Nome] - [email]
 - **DevOps:** [Nome] - [email]
 
-### 11.2 Canais de Suporte
+### 12.2 Canais de Suporte
 
 - **Documentação:** https://docs.ponto-eletronico.com.br
 - **Issues:** https://github.com/empresa/ponto-eletronico/issues
@@ -1710,7 +1957,7 @@ tar -czf configs_$(date +%Y%m%d).tar.gz .env app/Config/
 
 ---
 
-## 12. GLOSSÁRIO
+## 13. GLOSSÁRIO
 
 - **AFD:** Arquivo Fonte de Dados (Portaria 671)
 - **AEJ:** Arquivo Eletrônico de Jornada
@@ -1724,8 +1971,62 @@ tar -czf configs_$(date +%Y%m%d).tar.gz .env app/Config/
 
 ---
 
-**FIM DO PLANO TÉCNICO COMPLETO PARA CLAUDE CODE**
+**FIM DO PLANO TÉCNICO COMPLETO PARA CLAUDE CODE - v2.0 REVISADO**
 
-Este documento serve como guia completo para desenvolvimento agentico do sistema de ponto eletrônico usando Claude Code. Cada comando pode ser executado sequencialmente seguindo as fases, ou podem ser adaptados conforme necessidade específica do projeto.
+## 📌 Resumo das Melhorias Implementadas
 
-Para iniciar o desenvolvimento, execute os comandos da FASE 1 na ordem apresentada. Certifique-se de ter o ambiente preparado com PHP 8.1+, Composer, MySQL 8.0+ e Docker antes de começar.
+Este plano foi **revisado e otimizado** com base em melhores práticas de desenvolvimento agentico:
+
+### ✅ Principais Melhorias:
+
+1. **FASE 0: POC adicionada** (1 semana)
+   - Validação de CompreFace antes do desenvolvimento
+   - Testes de geolocalização em cenários reais
+   - Benchmarks de performance com Redis
+   - Critérios Go/No-Go claros
+
+2. **Timeline estendida e realista**
+   - De 20 semanas → 26-30 semanas (6-7 meses)
+   - Buffer de 3-5 semanas para imprevistos
+   - Datas de cada fase ajustadas
+
+3. **Tecnologias especificadas**
+   - Redis 7.0+ para filas, cache e sessões
+   - Workerman para WebSocket
+   - CompreFace com fallback para cloud APIs
+
+4. **Riscos mapeados e mitigados**
+   - 10 riscos principais identificados
+   - Planos de contingência detalhados
+   - Indicadores de alerta precoce
+
+5. **Escopo MVP otimizado**
+   - Biometria digital movida para v2.0
+   - Foco em features essenciais primeiro
+   - Roadmap claro de evolução
+
+### 🚀 Como Iniciar:
+
+**Passo 1:** Validar ambiente
+- PHP 8.1+, Composer, MySQL 8.0+, Docker, Docker Compose, Redis
+
+**Passo 2:** Executar FASE 0 (POC - 1 semana)
+- Validar todas as premissas técnicas críticas
+- Decisão Go/No-Go baseada em dados reais
+
+**Passo 3:** Executar FASE 1 em diante
+- Seguir comandos sequencialmente
+- Ajustar conforme necessário
+
+### 📊 Expectativas Realistas:
+
+- **MVP (v1.0):** 6-7 meses
+- **Equipe recomendada:** 2-3 desenvolvedores + 1 QA
+- **Custo aproximado de infraestrutura:** R$ 200-500/mês (VPS + serviços)
+- **Taxa de sucesso estimada:** 85% (com POC bem-sucedida)
+
+---
+
+**Versão do Documento:** 2.0 (Revisado)
+**Última Atualização:** 2025-11-15
+**Autor:** Sistema de Planejamento Claude Code
