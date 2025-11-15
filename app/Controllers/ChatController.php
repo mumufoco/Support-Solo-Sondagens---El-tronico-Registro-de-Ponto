@@ -325,4 +325,72 @@ class ChatController extends BaseController
 
         return $this->response->setJSON($result);
     }
+
+    /**
+     * Upload file attachment
+     *
+     * POST /chat/upload
+     */
+    public function uploadFile()
+    {
+        $employee = $this->getAuthenticatedEmployee();
+
+        if (!$employee) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Não autenticado.',
+            ]);
+        }
+
+        helper('file_upload');
+
+        $file = $this->request->getFile('file');
+
+        if (!$file) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Nenhum arquivo foi enviado.',
+            ]);
+        }
+
+        $result = upload_chat_file($file, $employee['id']);
+
+        return $this->response->setJSON($result);
+    }
+
+    /**
+     * Download/view file
+     *
+     * GET /chat/file/download
+     */
+    public function downloadFile()
+    {
+        $employee = $this->getAuthenticatedEmployee();
+
+        if (!$employee) {
+            return redirect()->to('/login')->with('error', 'Você precisa estar autenticado.');
+        }
+
+        helper('file_upload');
+
+        $filePath = $this->request->getGet('path');
+
+        if (!$filePath) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
+        }
+
+        // Validate file access
+        if (!validate_file_access($filePath, $employee['id'])) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
+        }
+
+        $fullPath = WRITEPATH . $filePath;
+
+        if (!file_exists($fullPath)) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
+        }
+
+        // Return file
+        return $this->response->download($fullPath, null)->setFileName(basename($filePath));
+    }
 }

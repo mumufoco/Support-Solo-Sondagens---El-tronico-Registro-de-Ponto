@@ -16,9 +16,61 @@ $isOwn = $message->sender_id === $employee['id'];
             </div>
         <?php endif; ?>
 
-        <div class="message-text">
-            <?= nl2br(esc($message->message)) ?>
-        </div>
+        <?php
+        // Check if message has file attachment
+        helper('file_upload');
+        $hasFile = !empty($message->file_path);
+        $isImage = $hasFile && is_image_file($message->type ?? '');
+        ?>
+
+        <?php if ($hasFile && $isImage): ?>
+            <!-- Image Preview -->
+            <div class="message-file mb-2">
+                <a href="<?= get_file_url($message->file_path) ?>" target="_blank" data-lightbox="chat-image">
+                    <img src="<?= get_file_url($message->file_path) ?>"
+                         alt="<?= esc($message->file_name) ?>"
+                         class="img-fluid rounded"
+                         style="max-width: 300px; max-height: 300px; cursor: pointer;">
+                </a>
+                <?php if (!empty($message->message) && $message->message !== 'Arquivo enviado'): ?>
+                    <div class="mt-2 message-text">
+                        <?= nl2br(esc($message->message)) ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        <?php elseif ($hasFile): ?>
+            <!-- Document/File Download -->
+            <div class="message-file mb-2 p-2 rounded" style="background: rgba(0,0,0,0.05);">
+                <div class="d-flex align-items-center">
+                    <div class="me-3">
+                        <i class="<?= get_file_icon($message->type ?? '', pathinfo($message->file_name, PATHINFO_EXTENSION)) ?> fa-2x"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="fw-bold small"><?= esc($message->file_name) ?></div>
+                        <div class="text-muted" style="font-size: 11px;">
+                            <?= format_file_size($message->file_size ?? 0) ?>
+                        </div>
+                    </div>
+                    <div>
+                        <a href="<?= get_file_url($message->file_path) ?>"
+                           class="btn btn-sm btn-<?= $isOwn ? 'light' : 'primary' ?>"
+                           download>
+                            <i class="fas fa-download"></i>
+                        </a>
+                    </div>
+                </div>
+                <?php if (!empty($message->message) && $message->message !== 'Arquivo enviado'): ?>
+                    <div class="mt-2 message-text small">
+                        <?= nl2br(esc($message->message)) ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        <?php else: ?>
+            <!-- Regular text message -->
+            <div class="message-text">
+                <?= nl2br(esc($message->message)) ?>
+            </div>
+        <?php endif; ?>
 
         <div class="d-flex justify-content-between align-items-center mt-2">
             <div class="message-time text-<?= $isOwn ? 'white' : 'muted' ?>" style="font-size: 11px;">

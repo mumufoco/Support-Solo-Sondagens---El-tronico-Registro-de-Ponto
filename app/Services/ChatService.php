@@ -204,6 +204,64 @@ class ChatService
     }
 
     /**
+     * Send file message
+     *
+     * @param int    $roomId
+     * @param int    $senderId
+     * @param string $caption
+     * @param string $filePath
+     * @param string $fileName
+     * @param int    $fileSize
+     * @param string $fileType
+     * @param int    $replyTo
+     * @return array
+     */
+    public function sendFileMessage(
+        int $roomId,
+        int $senderId,
+        string $caption,
+        string $filePath,
+        string $fileName,
+        int $fileSize,
+        string $fileType,
+        ?int $replyTo = null
+    ): array {
+        // Check if sender is member
+        if (!$this->memberModel->isMember($roomId, $senderId)) {
+            return [
+                'success' => false,
+                'message' => 'Você não é membro desta sala.',
+            ];
+        }
+
+        // Create message
+        $messageId = $this->messageModel->insert([
+            'room_id'   => $roomId,
+            'sender_id' => $senderId,
+            'message'   => $caption ?: 'Arquivo enviado',
+            'type'      => $fileType,
+            'file_path' => $filePath,
+            'file_name' => $fileName,
+            'file_size' => $fileSize,
+            'reply_to'  => $replyTo,
+        ]);
+
+        if (!$messageId) {
+            return [
+                'success' => false,
+                'message' => 'Erro ao enviar arquivo.',
+            ];
+        }
+
+        $messageData = $this->messageModel->find($messageId);
+
+        return [
+            'success' => true,
+            'message' => $messageData,
+        ];
+    }
+
+    /**
      * Mark room as read
      *
      * @param int $roomId

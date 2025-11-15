@@ -66,14 +66,35 @@
                         </div>
                     </div>
 
+                    <!-- File Preview Area -->
+                    <div id="filePreviewArea" class="mb-2" style="display: none;">
+                        <div class="alert alert-secondary py-2 px-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-file me-2"></i>
+                                    <div>
+                                        <div class="small fw-bold" id="filePreviewName"></div>
+                                        <div class="text-muted" style="font-size: 11px;" id="filePreviewSize"></div>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn-close btn-sm" onclick="cancelFileUpload()"></button>
+                            </div>
+                            <!-- Upload Progress -->
+                            <div id="uploadProgress" class="progress mt-2" style="height: 4px; display: none;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                    </div>
+
                     <form id="messageForm" onsubmit="sendMessage(event)">
                         <div class="input-group">
                             <button class="btn btn-outline-secondary" type="button" title="Emoji">
                                 <i class="far fa-smile"></i>
                             </button>
-                            <button class="btn btn-outline-secondary" type="button" title="Anexar arquivo">
+                            <button class="btn btn-outline-secondary" type="button" title="Anexar arquivo" onclick="document.getElementById('fileInput').click()">
                                 <i class="fas fa-paperclip"></i>
                             </button>
+                            <input type="file" id="fileInput" style="display: none;" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip,.rar,.7z" onchange="handleFileSelect(event)">
                             <input
                                 type="text"
                                 class="form-control"
@@ -81,9 +102,8 @@
                                 placeholder="Digite sua mensagem..."
                                 autocomplete="off"
                                 maxlength="5000"
-                                required
                             >
-                            <button class="btn btn-primary" type="submit">
+                            <button class="btn btn-primary" type="submit" id="sendButton">
                                 <i class="fas fa-paper-plane"></i> Enviar
                             </button>
                         </div>
@@ -279,16 +299,67 @@ function sendMessage(event) {
     const input = document.getElementById('messageInput');
     const message = input.value.trim();
 
-    if (!message) {
-        return;
+    // Check if file is selected
+    if (selectedFile) {
+        // Upload file
+        const caption = message || '';
+        uploadFile(selectedFile, caption);
+    } else {
+        // Send text message
+        if (!message) {
+            return;
+        }
+
+        chat.sendMessage(roomId, message, replyToMessageId);
+
+        input.value = '';
+        replyToMessageId = null;
+        document.getElementById('replyPreview').style.display = 'none';
+        updateCharCount();
     }
+}
 
-    chat.sendMessage(roomId, message, replyToMessageId);
+// Upload file
+function uploadFile(file, caption) {
+    const progressBar = document.querySelector('#uploadProgress .progress-bar');
+    const sendButton = document.getElementById('sendButton');
 
-    input.value = '';
-    replyToMessageId = null;
-    document.getElementById('replyPreview').style.display = 'none';
-    updateCharCount();
+    // Show progress
+    document.getElementById('uploadProgress').style.display = 'block';
+    sendButton.disabled = true;
+
+    // Upload file
+    currentUploadXhr = chat.uploadFile(
+        file,
+        roomId,
+        caption,
+        replyToMessageId,
+        // Progress callback
+        (percentage) => {
+            progressBar.style.width = percentage + '%';
+        },
+        // Success callback
+        (response) => {
+            console.log('File uploaded successfully:', response);
+
+            // Clear form
+            document.getElementById('messageInput').value = '';
+            cancelFileUpload();
+
+            // Scroll to bottom
+            scrollToBottom();
+        },
+        // Error callback
+        (error) => {
+            console.error('File upload error:', error);
+            alert('Erro ao enviar arquivo: ' + error);
+
+            // Re-enable send button
+            sendButton.disabled = false;
+            document.getElementById('uploadProgress').style.display = 'none';
+            progressBar.style.width = '0%';
+        }
+    );
 }
 
 // Append message to chat
@@ -359,6 +430,54 @@ function replyToMessage(messageId, messageText) {
 function cancelReply() {
     replyToMessageId = null;
     document.getElementById('replyPreview').style.display = 'none';
+}
+
+// File upload variables
+let selectedFile = null;
+let currentUploadXhr = null;
+
+// Handle file selection
+function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file
+    const validation = validateFile(file);
+    if (!validation.valid) {
+        alert(validation.error);
+        event.target.value = '';
+        return;
+    }
+
+    selectedFile = file;
+
+    // Show file preview
+    document.getElementById('filePreviewName').textContent = file.name;
+    document.getElementById('filePreviewSize').textContent = formatFileSize(file.size);
+    document.getElementById('filePreviewArea').style.display = 'block';
+
+    // Update icon based on file type
+    const icon = document.querySelector('#filePreviewArea .fas');
+    icon.className = `fas ${getFileIcon('', validation.extension)} me-2`;
+
+    // Focus on message input for caption
+    document.getElementById('messageInput').placeholder = 'Digite uma legenda (opcional)...';
+    document.getElementById('messageInput').focus();
+}
+
+// Cancel file upload
+function cancelFileUpload() {
+    selectedFile = null;
+    document.getElementById('filePreviewArea').style.display = 'none';
+    document.getElementById('uploadProgress').style.display = 'none';
+    document.getElementById('fileInput').value = '';
+    document.getElementById('messageInput').placeholder = 'Digite sua mensagem...';
+    document.getElementById('sendButton').disabled = false;
+
+    if (currentUploadXhr) {
+        currentUploadXhr.abort();
+        currentUploadXhr = null;
+    }
 }
 
 // Helper functions

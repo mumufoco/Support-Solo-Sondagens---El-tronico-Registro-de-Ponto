@@ -154,6 +154,10 @@ $routes->group('chat', ['filter' => 'auth'], static function ($routes) {
 
     // Search
     $routes->get('room/(:num)/search', 'ChatController::search/$1');
+
+    // File upload/download
+    $routes->post('upload', 'ChatController::uploadFile');
+    $routes->get('file/download', 'ChatController::downloadFile');
 });
 
 /*

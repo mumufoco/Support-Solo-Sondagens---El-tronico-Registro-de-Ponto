@@ -450,6 +450,107 @@ class ChatClient {
     setCurrentRoom(roomId) {
         this.currentRoomId = roomId;
     }
+
+    /**
+     * Upload file to server
+     * @param {File} file - File object from input
+     * @param {int} roomId - Room ID
+     * @param {string} caption - Optional caption for file
+     * @param {int} replyTo - Optional message ID to reply to
+     * @param {Function} onProgress - Progress callback (percentage)
+     * @param {Function} onSuccess - Success callback (fileData)
+     * @param {Function} onError - Error callback (error message)
+     */
+    uploadFile(file, roomId, caption = '', replyTo = null, onProgress = null, onSuccess = null, onError = null) {
+        // Validate file size (10MB)
+        const maxSize = 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+            const error = 'Arquivo muito grande. Tamanho máximo: 10MB';
+            if (onError) onError(error);
+            return false;
+        }
+
+        // Validate file type
+        const allowedExtensions = [
+            'jpg', 'jpeg', 'png', 'gif', 'webp',
+            'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv',
+            'zip', 'rar', '7z'
+        ];
+
+        const fileName = file.name.toLowerCase();
+        const extension = fileName.split('.').pop();
+
+        if (!allowedExtensions.includes(extension)) {
+            const error = 'Tipo de arquivo não permitido';
+            if (onError) onError(error);
+            return false;
+        }
+
+        // Prepare form data
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('room_id', roomId);
+        formData.append('caption', caption);
+        if (replyTo) {
+            formData.append('reply_to', replyTo);
+        }
+
+        // Create AJAX request
+        const xhr = new XMLHttpRequest();
+
+        // Progress tracking
+        if (onProgress) {
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const percentage = Math.round((e.loaded / e.total) * 100);
+                    onProgress(percentage);
+                }
+            });
+        }
+
+        // Success handler
+        xhr.addEventListener('load', () => {
+            if (xhr.status === 200) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        // Send file message via WebSocket
+                        this.send({
+                            type: 'message',
+                            room_id: roomId,
+                            message: caption || 'Arquivo enviado',
+                            file_data: response,
+                            reply_to: replyTo
+                        });
+
+                        if (onSuccess) onSuccess(response);
+                    } else {
+                        if (onError) onError(response.message || 'Erro ao enviar arquivo');
+                    }
+                } catch (error) {
+                    if (onError) onError('Erro ao processar resposta do servidor');
+                }
+            } else {
+                if (onError) onError('Erro ao enviar arquivo. Código: ' + xhr.status);
+            }
+        });
+
+        // Error handler
+        xhr.addEventListener('error', () => {
+            if (onError) onError('Erro de conexão ao enviar arquivo');
+        });
+
+        // Abort handler
+        xhr.addEventListener('abort', () => {
+            if (onError) onError('Upload cancelado');
+        });
+
+        // Send request
+        xhr.open('POST', '/chat/upload');
+        xhr.send(formData);
+
+        return xhr; // Return xhr for potential cancellation
+    }
 }
 
 /**
@@ -502,6 +603,160 @@ function formatMessage(text) {
     formatted = formatted.replace(/\n/g, '<br>');
 
     return formatted;
+}
+
+/**
+ * Helper function to format file size
+ */
+function formatFileSize(bytes) {
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let i = 0;
+    let size = bytes;
+
+    while (size >= 1024 && i < units.length - 1) {
+        size /= 1024;
+        i++;
+    }
+
+    return size.toFixed(2) + ' ' + units[i];
+}
+
+/**
+ * Helper function to get file icon class
+ */
+function getFileIcon(fileType, extension = '') {
+    const icons = {
+        'image': 'fa-file-image',
+        'document': 'fa-file-alt',
+        'archive': 'fa-file-archive'
+    };
+
+    const specificIcons = {
+        'pdf': 'fa-file-pdf',
+        'doc': 'fa-file-word',
+        'docx': 'fa-file-word',
+        'xls': 'fa-file-excel',
+        'xlsx': 'fa-file-excel',
+        'txt': 'fa-file-alt',
+        'csv': 'fa-file-csv',
+        'zip': 'fa-file-archive',
+        'rar': 'fa-file-archive'
+    };
+
+    if (extension && specificIcons[extension.toLowerCase()]) {
+        return specificIcons[extension.toLowerCase()];
+    }
+
+    return icons[fileType] || 'fa-file';
+}
+
+/**
+ * Helper function to check if file is image
+ */
+function isImageFile(fileType) {
+    return fileType === 'image';
+}
+
+/**
+ * Helper function to get file download URL
+ */
+function getFileDownloadUrl(filePath) {
+    return '/chat/file/download?path=' + encodeURIComponent(filePath);
+}
+
+/**
+ * Helper function to validate file before upload
+ */
+function validateFile(file) {
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const allowedExtensions = [
+        'jpg', 'jpeg', 'png', 'gif', 'webp',
+        'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv',
+        'zip', 'rar', '7z'
+    ];
+
+    // Check size
+    if (file.size > maxSize) {
+        return {
+            valid: false,
+            error: 'Arquivo muito grande. Tamanho máximo: 10MB'
+        };
+    }
+
+    // Check extension
+    const fileName = file.name.toLowerCase();
+    const extension = fileName.split('.').pop();
+
+    if (!allowedExtensions.includes(extension)) {
+        return {
+            valid: false,
+            error: 'Tipo de arquivo não permitido. Formatos aceitos: ' + allowedExtensions.join(', ')
+        };
+    }
+
+    return {
+        valid: true,
+        extension: extension
+    };
+}
+
+/**
+ * Helper function to create file preview
+ */
+function createFilePreview(file, onRemove = null) {
+    const validation = validateFile(file);
+
+    if (!validation.valid) {
+        return null;
+    }
+
+    const previewDiv = document.createElement('div');
+    previewDiv.className = 'file-preview';
+    previewDiv.dataset.fileName = file.name;
+
+    // Check if image
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const isImage = imageExtensions.includes(validation.extension);
+
+    if (isImage) {
+        // Create image preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.className = 'file-preview-image';
+            previewDiv.appendChild(img);
+        };
+        reader.readAsDataURL(file);
+    } else {
+        // Create file icon preview
+        const icon = document.createElement('i');
+        icon.className = `fas ${getFileIcon('', validation.extension)} fa-3x`;
+        previewDiv.appendChild(icon);
+    }
+
+    // File info
+    const fileInfo = document.createElement('div');
+    fileInfo.className = 'file-preview-info';
+    fileInfo.innerHTML = `
+        <div class="file-name">${escapeHtml(file.name)}</div>
+        <div class="file-size">${formatFileSize(file.size)}</div>
+    `;
+    previewDiv.appendChild(fileInfo);
+
+    // Remove button
+    if (onRemove) {
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'btn btn-sm btn-danger file-preview-remove';
+        removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+        removeBtn.onclick = () => {
+            previewDiv.remove();
+            if (onRemove) onRemove(file);
+        };
+        previewDiv.appendChild(removeBtn);
+    }
+
+    return previewDiv;
 }
 
 // Export for use in other scripts
