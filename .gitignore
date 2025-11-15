@@ -1,0 +1,193 @@
+#-------------------------
+# Operating Specific Junk Files
+#-------------------------
+
+# OS X
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# OS X Thumbnails
+._*
+
+# Windows image file caches
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# Windows Installer files
+*.cab
+*.msi
+*.msm
+*.msp
+
+# Windows shortcuts
+*.lnk
+
+# Linux
+*~
+
+# KDE directory preferences
+.directory
+
+# Linux trash folder which might appear on any partition or disk
+.Trash-*
+
+#-------------------------
+# Environment Files
+#-------------------------
+# These should never be under version control,
+# as it poses a security risk of exposing sensitive information.
+.env
+.vagrant
+Vagrantfile
+
+#-------------------------
+# Temporary Files
+#-------------------------
+writable/cache/*
+!writable/cache/index.html
+
+writable/logs/*
+!writable/logs/index.html
+
+writable/session/*
+!writable/session/index.html
+
+writable/uploads/*
+!writable/uploads/index.html
+
+writable/debugbar/*
+
+php_errors.log
+
+#-------------------------
+# User Guide Temp Files
+#-------------------------
+user_guide_src/build/*
+user_guide_src/cilexer/build/*
+user_guide_src/cilexer/dist/*
+user_guide_src/cilexer/pycilexer.egg-info/*
+
+#-------------------------
+# Test Files
+#-------------------------
+tests/coverage*
+
+# Don't save phpunit under version control.
+phpunit
+
+#-------------------------
+# Composer
+#-------------------------
+vendor/
+composer.lock
+
+#-------------------------
+# IDE Files
+#-------------------------
+# PhpStorm
+.idea/
+*.iml
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Sublime Text
+*.tmlanguage.cache
+*.tmPreferences.cache
+*.stTheme.cache
+*.sublime-workspace
+*.sublime-project
+.phpintel
+/api/
+
+# Eclipse
+.settings/
+.metadata/
+.buildpath
+.project
+
+# NetBeans
+nbproject/
+build/
+nbbuild/
+dist/
+nbdist/
+
+#-------------------------
+# Storage Files (Sensitive)
+#-------------------------
+storage/faces/*
+!storage/faces/.gitkeep
+
+storage/uploads/justifications/*
+!storage/uploads/justifications/.gitkeep
+
+storage/uploads/warnings/*
+!storage/uploads/warnings/.gitkeep
+
+storage/uploads/temp/*
+!storage/uploads/temp/.gitkeep
+
+storage/keys/*
+!storage/keys/.gitkeep
+
+storage/reports/*
+!storage/reports/.gitkeep
+
+storage/qrcodes/*
+!storage/qrcodes/.gitkeep
+
+storage/receipts/*
+!storage/receipts/.gitkeep
+
+storage/backups/*
+!storage/backups/.gitkeep
+
+#-------------------------
+# DeepFace API (Python)
+#-------------------------
+deepface-api/venv/
+deepface-api/__pycache__/
+deepface-api/*.pyc
+deepface-api/.pytest_cache/
+deepface-api/logs/*
+!deepface-api/logs/.gitkeep
+
+# DeepFace models cache
+.deepface/
+
+#-------------------------
+# Node Modules
+#-------------------------
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+#-------------------------
+# Assets Build
+#-------------------------
+public/build/
+public/hot
+public/storage
+public/mix-manifest.json
+
+#-------------------------
+# Backup Files
+#-------------------------
+*.sql
+*.sql.gz
+*.backup
+*.bak
+
+#-------------------------
+# Documentation Build
+#-------------------------
+docs/_build/
