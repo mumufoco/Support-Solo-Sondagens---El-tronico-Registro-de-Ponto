@@ -255,7 +255,7 @@ const employeeId = <?= $employee['id'] ?>;
 let replyToMessageId = null;
 
 // Initialize WebSocket
-const wsUrl = 'ws://<?= $_SERVER['HTTP_HOST'] ?? 'localhost' ?>:2346';
+const wsUrl = 'ws://<?= $_SERVER['HTTP_HOST'] ?? 'localhost' ?>:8080';
 const authToken = 'Bearer <?= session()->get('auth_token') ?? 'session' ?>';
 const chat = new ChatClient(wsUrl, authToken);
 
