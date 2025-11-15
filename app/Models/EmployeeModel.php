@@ -236,4 +236,91 @@ class EmployeeModel extends Model
             ->where('active', true)
             ->findAll();
     }
+
+    /**
+     * Generate QR Code for employee
+     *
+     * Creates a QR Code with signed payload for time punch registration
+     *
+     * @param int $employeeId
+     * @return array ['success' => bool, 'qr_path' => string, 'qr_url' => string, 'qr_data' => string, 'expires_at' => string]
+     */
+    public function generateQRCode(int $employeeId): array
+    {
+        $employee = $this->find($employeeId);
+
+        if (!$employee) {
+            return [
+                'success'  => false,
+                'error'    => 'Funcionário não encontrado.',
+                'qr_path'  => null,
+                'qr_url'   => null,
+                'qr_data'  => null,
+            ];
+        }
+
+        // Create payload
+        $timestamp = time();
+        $payload = [
+            'employee_id'  => $employee->id,
+            'unique_code'  => $employee->unique_code,
+            'generated_at' => $timestamp,
+        ];
+
+        // Generate HMAC signature
+        $payloadString = json_encode($payload);
+        $signature = hash_hmac('sha256', $payloadString, env('encryption.key'));
+
+        // QR data format: EMP-{id}-{timestamp}-{signature}
+        $qrData = "EMP-{$employee->id}-{$timestamp}-{$signature}";
+
+        // Create QR Code directory if not exists
+        $qrDir = WRITEPATH . 'qrcodes';
+        if (!is_dir($qrDir)) {
+            mkdir($qrDir, 0755, true);
+        }
+
+        // Generate QR Code using chillerlan/php-qrcode
+        $options = new \chillerlan\QRCode\QROptions([
+            'version'          => 5,
+            'outputType'       => \chillerlan\QRCode\QRCode::OUTPUT_IMAGE_PNG,
+            'eccLevel'         => \chillerlan\QRCode\QRCode::ECC_L, // Low error correction
+            'scale'            => 10, // 400x400px approx
+            'imageBase64'      => false,
+        ]);
+
+        $qrcode = new \chillerlan\QRCode\QRCode($options);
+        $qrPath = $qrDir . "/employee_{$employee->id}.png";
+        $qrcode->render($qrData, $qrPath);
+
+        // Calculate expiration (5 minutes from now)
+        $expiresAt = date('Y-m-d H:i:s', $timestamp + 300);
+
+        return [
+            'success'     => true,
+            'qr_path'     => $qrPath,
+            'qr_url'      => base_url('qrcode/' . $employee->id),
+            'qr_data'     => $qrData,
+            'expires_at'  => $expiresAt,
+            'employee_id' => $employee->id,
+            'unique_code' => $employee->unique_code,
+        ];
+    }
+
+    /**
+     * Get QR Code path for employee
+     *
+     * @param int $employeeId
+     * @return string|null
+     */
+    public function getQRCodePath(int $employeeId): ?string
+    {
+        $qrPath = WRITEPATH . "qrcodes/employee_{$employeeId}.png";
+
+        if (file_exists($qrPath)) {
+            return $qrPath;
+        }
+
+        return null;
+    }
 }
