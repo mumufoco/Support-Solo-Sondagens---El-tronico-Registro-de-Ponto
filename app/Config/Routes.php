@@ -29,9 +29,9 @@ $routes->group('auth', static function ($routes) {
  */
 $routes->group('dashboard', ['filter' => 'auth'], static function ($routes) {
     $routes->get('/', 'Dashboard\DashboardController::index');
-    $routes->get('admin', 'Dashboard\AdminDashboardController::index', ['filter' => 'admin']);
-    $routes->get('manager', 'Dashboard\ManagerDashboardController::index', ['filter' => 'manager']);
-    $routes->get('employee', 'Dashboard\EmployeeDashboardController::index');
+    $routes->get('admin', 'Admin\DashboardController::index', ['filter' => 'admin']);
+    $routes->get('manager', 'Gestor\DashboardController::index', ['filter' => 'manager']);
+    $routes->get('employee', 'Dashboard\DashboardController::index');
 });
 
 /*
