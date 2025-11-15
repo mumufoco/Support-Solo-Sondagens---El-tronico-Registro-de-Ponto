@@ -158,6 +158,12 @@ $routes->group('chat', ['filter' => 'auth'], static function ($routes) {
     // File upload/download
     $routes->post('upload', 'ChatController::uploadFile');
     $routes->get('file/download', 'ChatController::downloadFile');
+
+    // Push notifications
+    $routes->get('push/vapid-key', 'ChatController::getVapidKey');
+    $routes->post('push/subscribe', 'ChatController::subscribePush');
+    $routes->post('push/unsubscribe', 'ChatController::unsubscribePush');
+    $routes->post('push/test', 'ChatController::testPush');
 });
 
 /*

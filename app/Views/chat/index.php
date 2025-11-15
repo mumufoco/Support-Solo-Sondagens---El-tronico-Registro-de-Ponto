@@ -10,18 +10,26 @@
                 <h5 class="mb-0">
                     <i class="fas fa-comments"></i> Conversas
                 </h5>
-                <div class="dropdown">
-                    <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-plus"></i>
+                <div class="d-flex gap-2">
+                    <!-- Push Notification Toggle -->
+                    <button id="pushToggleBtn" class="btn btn-sm btn-outline-secondary" type="button" title="Notificações Push">
+                        <i class="fas fa-bell" id="pushIcon"></i>
                     </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#newChatModal">
-                            <i class="fas fa-user"></i> Nova Conversa
-                        </a></li>
-                        <li><a class="dropdown-item" href="/chat/group/create">
-                            <i class="fas fa-users"></i> Novo Grupo
-                        </a></li>
-                    </ul>
+
+                    <!-- New Chat Dropdown -->
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#newChatModal">
+                                <i class="fas fa-user"></i> Nova Conversa
+                            </a></li>
+                            <li><a class="dropdown-item" href="/chat/group/create">
+                                <i class="fas fa-users"></i> Novo Grupo
+                            </a></li>
+                        </ul>
+                    </div>
                 </div>
             </div>
 
@@ -176,12 +184,115 @@
 </style>
 
 <script src="/assets/js/chat.js"></script>
+<script src="/assets/js/push-notifications.js"></script>
 <script>
 // Initialize WebSocket chat client
 const wsUrl = 'ws://<?= $_SERVER['HTTP_HOST'] ?? 'localhost' ?>:2346';
 const authToken = 'Bearer <?= session()->get('auth_token') ?? 'session' ?>';
 
 const chat = new ChatClient(wsUrl, authToken);
+
+// Initialize Push Notifications
+let pushManager = null;
+
+async function initPushNotifications() {
+    try {
+        // Get VAPID public key
+        const response = await fetch('/chat/push/vapid-key');
+        const data = await response.json();
+
+        if (!data.success || !data.publicKey) {
+            console.warn('[Push] VAPID public key not configured');
+            return;
+        }
+
+        // Initialize push manager
+        pushManager = new PushNotificationManager(data.publicKey);
+        const initialized = await pushManager.init();
+
+        updatePushButton();
+
+        console.log('[Push] Initialized successfully');
+    } catch (error) {
+        console.error('[Push] Initialization error:', error);
+    }
+}
+
+// Update push notification button state
+function updatePushButton() {
+    if (!pushManager) return;
+
+    const pushBtn = document.getElementById('pushToggleBtn');
+    const pushIcon = document.getElementById('pushIcon');
+
+    const permission = pushManager.getPermissionStatus();
+    const isSubscribed = pushManager.isSubscribed();
+
+    if (permission === 'unsupported') {
+        pushBtn.disabled = true;
+        pushBtn.title = 'Notificações push não suportadas';
+        pushIcon.className = 'fas fa-bell-slash text-muted';
+    } else if (permission === 'denied') {
+        pushBtn.className = 'btn btn-sm btn-outline-danger';
+        pushBtn.title = 'Notificações bloqueadas';
+        pushIcon.className = 'fas fa-bell-slash';
+    } else if (isSubscribed) {
+        pushBtn.className = 'btn btn-sm btn-success';
+        pushBtn.title = 'Notificações ativas - Clique para desativar';
+        pushIcon.className = 'fas fa-bell';
+    } else {
+        pushBtn.className = 'btn btn-sm btn-outline-secondary';
+        pushBtn.title = 'Ativar notificações';
+        pushIcon.className = 'far fa-bell';
+    }
+}
+
+// Toggle push notification subscription
+async function togglePushNotification() {
+    if (!pushManager) {
+        alert('Notificações push não estão disponíveis');
+        return;
+    }
+
+    const isSubscribed = pushManager.isSubscribed();
+
+    if (isSubscribed) {
+        // Unsubscribe
+        const result = await pushManager.unsubscribe();
+
+        if (result.success) {
+            updatePushButton();
+            showNotification('Notificações desativadas', 'secondary');
+        } else {
+            alert('Erro ao desativar notificações: ' + result.error);
+        }
+    } else {
+        // Subscribe
+        const result = await pushManager.subscribe();
+
+        if (result.success) {
+            updatePushButton();
+            showNotification('Notificações ativadas!', 'success');
+
+            // Test notification
+            await pushManager.testNotification();
+        } else {
+            alert('Erro ao ativar notificações: ' + result.error);
+        }
+    }
+}
+
+// Show notification toast
+function showNotification(message, type = 'info') {
+    // You can implement a toast notification system here
+    console.log(`[${type.toUpperCase()}] ${message}`);
+}
+
+// Bind push toggle button
+document.getElementById('pushToggleBtn')?.addEventListener('click', togglePushNotification);
+
+// Initialize push notifications
+initPushNotifications();
 
 // Set up event handlers
 chat.onConnected = () => {

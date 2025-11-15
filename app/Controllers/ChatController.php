@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Services\ChatService;
+use App\Services\PushNotificationService;
 use App\Models\EmployeeModel;
 
 /**
@@ -13,11 +14,13 @@ use App\Models\EmployeeModel;
 class ChatController extends BaseController
 {
     protected ChatService $chatService;
+    protected PushNotificationService $pushService;
     protected EmployeeModel $employeeModel;
 
     public function __construct()
     {
         $this->chatService = new ChatService();
+        $this->pushService = new PushNotificationService();
         $this->employeeModel = new EmployeeModel();
     }
 
@@ -392,5 +395,100 @@ class ChatController extends BaseController
 
         // Return file
         return $this->response->download($fullPath, null)->setFileName(basename($filePath));
+    }
+
+    /**
+     * Get VAPID public key
+     *
+     * GET /chat/push/vapid-key
+     */
+    public function getVapidKey()
+    {
+        return $this->response->setJSON([
+            'success'   => true,
+            'publicKey' => $this->pushService->getPublicKey(),
+        ]);
+    }
+
+    /**
+     * Subscribe to push notifications
+     *
+     * POST /chat/push/subscribe
+     */
+    public function subscribePush()
+    {
+        $employee = $this->getAuthenticatedEmployee();
+
+        if (!$employee) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Não autenticado.',
+            ]);
+        }
+
+        $subscription = $this->request->getJSON(true);
+
+        if (empty($subscription)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Dados de inscrição inválidos.',
+            ]);
+        }
+
+        $result = $this->pushService->subscribe($employee['id'], $subscription);
+
+        return $this->response->setJSON($result);
+    }
+
+    /**
+     * Unsubscribe from push notifications
+     *
+     * POST /chat/push/unsubscribe
+     */
+    public function unsubscribePush()
+    {
+        $employee = $this->getAuthenticatedEmployee();
+
+        if (!$employee) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Não autenticado.',
+            ]);
+        }
+
+        $data = $this->request->getJSON(true);
+        $endpoint = $data['endpoint'] ?? '';
+
+        if (empty($endpoint)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Endpoint é obrigatório.',
+            ]);
+        }
+
+        $result = $this->pushService->unsubscribe($employee['id'], $endpoint);
+
+        return $this->response->setJSON($result);
+    }
+
+    /**
+     * Test push notification
+     *
+     * POST /chat/push/test
+     */
+    public function testPush()
+    {
+        $employee = $this->getAuthenticatedEmployee();
+
+        if (!$employee) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Não autenticado.',
+            ]);
+        }
+
+        $result = $this->pushService->sendTestNotification($employee['id']);
+
+        return $this->response->setJSON($result);
     }
 }
