@@ -4,189 +4,160 @@ namespace App\Models;
 
 use CodeIgniter\Model;
 
+/**
+ * ChatMessage Model
+ *
+ * Manages chat messages in rooms
+ */
 class ChatMessageModel extends Model
 {
     protected $table            = 'chat_messages';
     protected $primaryKey       = 'id';
     protected $useAutoIncrement = true;
     protected $returnType       = 'object';
-    protected $useSoftDeletes   = false;
+    protected $useSoftDeletes   = true;
     protected $protectFields    = true;
     protected $allowedFields    = [
+        'room_id',
         'sender_id',
-        'recipient_id',
         'message',
-        'attachment_path',
-        'attachment_type',
-        'attachment_size',
-        'sent_at',
-        'delivered_at',
-        'read_at',
-        'deleted_by_sender',
-        'deleted_by_recipient',
+        'type',
+        'file_path',
+        'file_name',
+        'file_size',
+        'reply_to',
+        'edited_at',
     ];
 
     // Dates
     protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';
     protected $createdField  = 'created_at';
-    protected $updatedField  = false; // Messages are immutable
+    protected $updatedField  = null;
+    protected $deletedField  = 'deleted_at';
 
     // Validation
     protected $validationRules = [
-        'sender_id'    => 'required|integer',
-        'recipient_id' => 'required|integer',
-        'message'      => 'required|max_length[5000]',
+        'room_id'   => 'required|integer',
+        'sender_id' => 'required|integer',
+        'message'   => 'required|max_length[5000]',
+        'type'      => 'permit_empty|in_list[text,file,image,system]',
     ];
 
     protected $validationMessages = [
         'message' => [
-            'max_length' => 'A mensagem deve ter no máximo 5000 caracteres.',
+            'required'   => 'A mensagem é obrigatória.',
+            'max_length' => 'A mensagem não pode ter mais de 5000 caracteres.',
         ],
     ];
 
-    protected $skipValidation       = false;
-    protected $cleanValidationRules = true;
+    protected $skipValidation = false;
 
     /**
-     * Get conversation between two users
+     * Get messages for a room
+     *
+     * @param int    $roomId
+     * @param int    $limit
+     * @param int    $offset
+     * @param string $beforeId Optional message ID to load messages before
+     * @return array
      */
-    public function getConversation(int $user1Id, int $user2Id, ?int $limit = 50): array
+    public function getRoomMessages(int $roomId, int $limit = 50, int $offset = 0, ?string $beforeId = null): array
     {
-        return $this->groupStart()
-            ->where('sender_id', $user1Id)
-            ->where('recipient_id', $user2Id)
-            ->groupEnd()
-            ->orGroupStart()
-            ->where('sender_id', $user2Id)
-            ->where('recipient_id', $user1Id)
-            ->groupEnd()
-            ->orderBy('sent_at', 'DESC')
+        $query = $this->select('chat_messages.*,
+                               employees.name as sender_name,
+                               employees.email as sender_email,
+                               reply_msg.message as reply_message,
+                               reply_sender.name as reply_sender_name')
+            ->join('employees', 'employees.id = chat_messages.sender_id', 'left')
+            ->join('chat_messages as reply_msg', 'reply_msg.id = chat_messages.reply_to', 'left')
+            ->join('employees as reply_sender', 'reply_sender.id = reply_msg.sender_id', 'left')
+            ->where('chat_messages.room_id', $roomId);
+
+        if ($beforeId) {
+            $query->where('chat_messages.id <', $beforeId);
+        }
+
+        return $query->orderBy('chat_messages.created_at', 'DESC')
+            ->limit($limit, $offset)
+            ->findAll();
+    }
+
+    /**
+     * Get message with reactions
+     *
+     * @param int $messageId
+     * @return object|null
+     */
+    public function getMessageWithReactions(int $messageId): ?object
+    {
+        $message = $this->find($messageId);
+
+        if (!$message) {
+            return null;
+        }
+
+        $reactionModel = new \App\Models\ChatMessageReactionModel();
+        $message->reactions = $reactionModel->getMessageReactions($messageId);
+
+        return $message;
+    }
+
+    /**
+     * Search messages in room
+     *
+     * @param int    $roomId
+     * @param string $query
+     * @param int    $limit
+     * @return array
+     */
+    public function searchMessages(int $roomId, string $query, int $limit = 20): array
+    {
+        return $this->select('chat_messages.*, employees.name as sender_name')
+            ->join('employees', 'employees.id = chat_messages.sender_id', 'left')
+            ->where('chat_messages.room_id', $roomId)
+            ->like('chat_messages.message', $query)
+            ->orderBy('chat_messages.created_at', 'DESC')
             ->limit($limit)
             ->findAll();
     }
 
     /**
-     * Get unread messages for user
+     * Get message count for room
+     *
+     * @param int $roomId
+     * @return int
      */
-    public function getUnread(int $userId): array
+    public function getMessageCount(int $roomId): int
     {
-        return $this->where('recipient_id', $userId)
-            ->where('read_at', null)
-            ->where('deleted_by_recipient', false)
-            ->orderBy('sent_at', 'DESC')
-            ->findAll();
+        return $this->where('room_id', $roomId)->countAllResults();
     }
 
     /**
-     * Get unread count for user
+     * Update message (mark as edited)
+     *
+     * @param int    $messageId
+     * @param string $newMessage
+     * @return bool
      */
-    public function getUnreadCount(int $userId): int
-    {
-        return $this->where('recipient_id', $userId)
-            ->where('read_at', null)
-            ->where('deleted_by_recipient', false)
-            ->countAllResults();
-    }
-
-    /**
-     * Mark message as read
-     */
-    public function markAsRead(int $messageId): bool
+    public function editMessage(int $messageId, string $newMessage): bool
     {
         return $this->update($messageId, [
-            'read_at' => date('Y-m-d H:i:s'),
+            'message'   => $newMessage,
+            'edited_at' => date('Y-m-d H:i:s'),
         ]);
     }
 
     /**
-     * Mark all messages from a user as read
+     * Delete old messages (cleanup)
+     *
+     * @param int $days
+     * @return int Number of deleted messages
      */
-    public function markAllAsRead(int $senderId, int $recipientId): bool
+    public function deleteOldMessages(int $days = 90): int
     {
-        return $this->where('sender_id', $senderId)
-            ->where('recipient_id', $recipientId)
-            ->where('read_at', null)
-            ->set(['read_at' => date('Y-m-d H:i:s')])
-            ->update();
-    }
+        $cutoffDate = date('Y-m-d H:i:s', strtotime("-{$days} days"));
 
-    /**
-     * Mark message as delivered
-     */
-    public function markAsDelivered(int $messageId): bool
-    {
-        return $this->update($messageId, [
-            'delivered_at' => date('Y-m-d H:i:s'),
-        ]);
-    }
-
-    /**
-     * Delete message for sender
-     */
-    public function deleteForSender(int $messageId): bool
-    {
-        return $this->update($messageId, ['deleted_by_sender' => true]);
-    }
-
-    /**
-     * Delete message for recipient
-     */
-    public function deleteForRecipient(int $messageId): bool
-    {
-        return $this->update($messageId, ['deleted_by_recipient' => true]);
-    }
-
-    /**
-     * Get recent contacts for user
-     */
-    public function getRecentContacts(int $userId, ?int $limit = 10): array
-    {
-        $db = \Config\Database::connect();
-
-        $sql = "
-            SELECT DISTINCT
-                CASE
-                    WHEN sender_id = ? THEN recipient_id
-                    ELSE sender_id
-                END as contact_id,
-                MAX(sent_at) as last_message_at
-            FROM chat_messages
-            WHERE sender_id = ? OR recipient_id = ?
-            GROUP BY contact_id
-            ORDER BY last_message_at DESC
-            LIMIT ?
-        ";
-
-        $query = $db->query($sql, [$userId, $userId, $userId, $limit]);
-
-        return $query->getResult();
-    }
-
-    /**
-     * Send message
-     */
-    public function send(
-        int $senderId,
-        int $recipientId,
-        string $message,
-        ?string $attachmentPath = null,
-        ?string $attachmentType = null,
-        ?int $attachmentSize = null
-    ): int|false {
-        $data = [
-            'sender_id'    => $senderId,
-            'recipient_id' => $recipientId,
-            'message'      => $message,
-            'sent_at'      => date('Y-m-d H:i:s'),
-        ];
-
-        if ($attachmentPath) {
-            $data['attachment_path'] = $attachmentPath;
-            $data['attachment_type'] = $attachmentType;
-            $data['attachment_size'] = $attachmentSize;
-        }
-
-        return $this->insert($data);
+        return $this->where('created_at <', $cutoffDate)->delete();
     }
 }
