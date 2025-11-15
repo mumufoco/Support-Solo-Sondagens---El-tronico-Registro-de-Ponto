@@ -21,13 +21,45 @@ Microserviço de reconhecimento facial para o Sistema de Ponto Eletrônico Brasi
 
 ## 🔧 Instalação
 
-### 1. Navegar para o diretório
+### Opção A: Instalação Automatizada (Recomendado)
+
+#### Instalação Local (Desenvolvimento)
+
+```bash
+cd deepface-api
+./setup_deepface_api.sh
+```
+
+O script irá:
+- ✅ Verificar pré-requisitos (Python 3.8+)
+- ✅ Criar ambiente virtual automaticamente
+- ✅ Instalar todas as dependências
+- ✅ Criar diretórios necessários
+- ✅ Configurar arquivo .env
+- ✅ Tornar scripts executáveis
+
+#### Instalação no Sistema (Produção com systemd)
+
+```bash
+cd deepface-api
+sudo ./setup_deepface_api.sh --system
+```
+
+O script irá:
+- ✅ Instalar em `/var/www/deepface-api`
+- ✅ Configurar usuário `www-data`
+- ✅ Criar serviço systemd
+- ✅ Configurar permissões adequadas
+
+### Opção B: Instalação Manual
+
+#### 1. Navegar para o diretório
 
 ```bash
 cd deepface-api
 ```
 
-### 2. Criar ambiente virtual
+#### 2. Criar ambiente virtual
 
 ```bash
 python3 -m venv venv
@@ -36,21 +68,21 @@ source venv/bin/activate  # Linux/Mac
 venv\Scripts\activate     # Windows
 ```
 
-### 3. Instalar dependências
+#### 3. Instalar dependências
 
 ```bash
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 4. Configurar variáveis de ambiente
+#### 4. Configurar variáveis de ambiente
 
 ```bash
 cp .env.example .env
 nano .env  # Editar conforme necessário
 ```
 
-### 5. Criar diretórios necessários
+#### 5. Criar diretórios necessários
 
 ```bash
 mkdir -p logs
@@ -62,57 +94,78 @@ mkdir -p ../storage/faces/temp
 ### Modo Desenvolvimento
 
 ```bash
-# Usando o script (recomendado)
-../scripts/deepface_start.sh
+# Usando o script de inicialização (recomendado)
+./deepface_start.sh
 
 # Ou manualmente
+source venv/bin/activate
 python app.py
 ```
+
+O script `deepface_start.sh` irá:
+- ✅ Verificar e ativar ambiente virtual
+- ✅ Atualizar dependências se necessário
+- ✅ Verificar arquivo .env
+- ✅ Criar diretórios necessários
+- ✅ Pré-carregar modelos DeepFace
+- ✅ Iniciar servidor com Gunicorn
 
 ### Modo Produção
 
 ```bash
-# Usando Gunicorn (recomendado)
-../scripts/deepface_start.sh --production
-
-# Ou manualmente
-gunicorn --bind 0.0.0.0:5000 --workers 4 --timeout 120 app:app
+# Usando Gunicorn diretamente
+source venv/bin/activate
+gunicorn --bind 0.0.0.0:5000 --workers 2 --timeout 120 app:app
 ```
 
 ### Configurar como Serviço (systemd)
 
-```bash
-# Criar arquivo de serviço
-sudo nano /etc/systemd/system/deepface-api.service
-```
-
-Conteúdo:
-
-```ini
-[Unit]
-Description=DeepFace API - Facial Recognition Service
-After=network.target
-
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=/var/www/ponto-eletronico/deepface-api
-Environment="PATH=/var/www/ponto-eletronico/deepface-api/venv/bin"
-ExecStart=/var/www/ponto-eletronico/deepface-api/venv/bin/gunicorn --bind 0.0.0.0:5000 --workers 4 --timeout 120 app:app
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Habilitar e iniciar:
+#### Opção A: Instalação Automatizada
 
 ```bash
+sudo ./setup_deepface_api.sh --system
+```
+
+O script irá instalar e configurar o serviço systemd automaticamente.
+
+#### Opção B: Instalação Manual
+
+O arquivo `deepface-api.service` já está incluído no projeto. Para instalá-lo:
+
+```bash
+# Copiar arquivo de serviço
+sudo cp deepface-api.service /etc/systemd/system/
+
+# Recarregar systemd
 sudo systemctl daemon-reload
+
+# Habilitar serviço (iniciar no boot)
 sudo systemctl enable deepface-api
+
+# Iniciar serviço
 sudo systemctl start deepface-api
+
+# Verificar status
 sudo systemctl status deepface-api
+```
+
+#### Gerenciar o Serviço
+
+```bash
+# Iniciar
+sudo systemctl start deepface-api
+
+# Parar
+sudo systemctl stop deepface-api
+
+# Reiniciar
+sudo systemctl restart deepface-api
+
+# Ver status
+sudo systemctl status deepface-api
+
+# Ver logs
+sudo journalctl -u deepface-api -f
 ```
 
 ## 📡 API Endpoints
