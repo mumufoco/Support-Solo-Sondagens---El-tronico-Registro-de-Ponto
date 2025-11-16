@@ -3,7 +3,7 @@
         'name' => 'mumufoco/ponto-eletronico',
         'pretty_version' => 'dev-claude/fix-composer-setup-warning-01NedH4Ms8iQLTecqkxf9rPx',
         'version' => 'dev-claude/fix-composer-setup-warning-01NedH4Ms8iQLTecqkxf9rPx',
-        'reference' => 'b6da10b0ad5bbc4f54cf764ac05bb1521622f825',
+        'reference' => '2963c6269cebc79ed4ffbcaeba66a6d6347a93d2',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -88,6 +88,12 @@
             'aliases' => array(),
             'dev_requirement' => false,
         ),
+        'facebook/webdriver' => array(
+            'dev_requirement' => true,
+            'replaced' => array(
+                0 => '*',
+            ),
+        ),
         'fakerphp/faker' => array(
             'pretty_version' => 'v1.24.1',
             'version' => '1.24.1.0',
@@ -96,6 +102,15 @@
             'install_path' => __DIR__ . '/../fakerphp/faker',
             'aliases' => array(),
             'dev_requirement' => true,
+        ),
+        'firebase/php-jwt' => array(
+            'pretty_version' => 'v6.11.1',
+            'version' => '6.11.1.0',
+            'reference' => 'd1e91ecf8c598d073d0995afa8cd5c75c6e19e66',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../firebase/php-jwt',
+            'aliases' => array(),
+            'dev_requirement' => false,
         ),
         'guzzlehttp/guzzle' => array(
             'pretty_version' => '7.10.0',
@@ -181,7 +196,7 @@
         'mumufoco/ponto-eletronico' => array(
             'pretty_version' => 'dev-claude/fix-composer-setup-warning-01NedH4Ms8iQLTecqkxf9rPx',
             'version' => 'dev-claude/fix-composer-setup-warning-01NedH4Ms8iQLTecqkxf9rPx',
-            'reference' => 'b6da10b0ad5bbc4f54cf764ac05bb1521622f825',
+            'reference' => '2963c6269cebc79ed4ffbcaeba66a6d6347a93d2',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
@@ -252,6 +267,15 @@
             'provided' => array(
                 0 => '*',
             ),
+        ),
+        'php-webdriver/webdriver' => array(
+            'pretty_version' => '1.15.2',
+            'version' => '1.15.2.0',
+            'reference' => '998e499b786805568deaf8cbf06f4044f05d91bf',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../php-webdriver/webdriver',
+            'aliases' => array(),
+            'dev_requirement' => true,
         ),
         'phpoffice/phpspreadsheet' => array(
             'pretty_version' => '1.30.1',
@@ -660,6 +684,15 @@
             'install_path' => __DIR__ . '/../symfony/polyfill-php83',
             'aliases' => array(),
             'dev_requirement' => false,
+        ),
+        'symfony/process' => array(
+            'pretty_version' => 'v7.3.4',
+            'version' => '7.3.4.0',
+            'reference' => 'f24f8f316367b30810810d4eb30c543d7003ff3b',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../symfony/process',
+            'aliases' => array(),
+            'dev_requirement' => true,
         ),
         'symfony/service-contracts' => array(
             'pretty_version' => 'v3.6.1',
