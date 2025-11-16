@@ -293,7 +293,7 @@ class RateLimitService
      *
      * @return string
      */
-    protected function getClientIp(): string
+    public function getClientIp(): string
     {
         $request = Services::request();
 
