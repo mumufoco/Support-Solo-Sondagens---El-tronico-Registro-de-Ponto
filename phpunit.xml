@@ -20,6 +20,12 @@
         <testsuite name="Feature">
             <directory>./tests/feature</directory>
         </testsuite>
+        <testsuite name="Integration">
+            <directory>./tests/integration</directory>
+        </testsuite>
+        <testsuite name="E2E">
+            <directory>./tests/e2e</directory>
+        </testsuite>
     </testsuites>
 
     <coverage processUncoveredFiles="true">
