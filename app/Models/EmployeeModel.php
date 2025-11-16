@@ -488,4 +488,119 @@ class EmployeeModel extends Model
             'active_count' => count($subordinates), // All are active due to filter
         ];
     }
+
+    // ==================== Eager Loading Methods ====================
+
+    /**
+     * Get employees with their related data (avoid N+1 queries)
+     *
+     * Uses JOIN to load related data in a single query instead of
+     * multiple queries per employee
+     *
+     * @param array|null $employeeIds Optional list of employee IDs to filter
+     * @return array List of employees with relations
+     */
+    public function getWithRelations(?array $employeeIds = null): array
+    {
+        $builder = $this->db->table('employees e')
+            ->select('
+                e.*,
+                m.name as manager_name,
+                m.email as manager_email,
+                COUNT(DISTINCT tp.id) as total_punches,
+                COUNT(DISTINCT j.id) as total_justifications,
+                COUNT(DISTINCT w.id) as total_warnings,
+                COUNT(DISTINCT bt.id) as biometric_templates_count
+            ')
+            ->join('employees m', 'e.manager_id = m.id', 'left')
+            ->join('time_punches tp', 'e.id = tp.employee_id', 'left')
+            ->join('justifications j', 'e.id = j.employee_id', 'left')
+            ->join('warnings w', 'e.id = w.employee_id', 'left')
+            ->join('biometric_templates bt', 'e.id = bt.employee_id AND bt.active = 1', 'left')
+            ->where('e.active', 1)
+            ->groupBy('e.id');
+
+        if ($employeeIds !== null && !empty($employeeIds)) {
+            $builder->whereIn('e.id', $employeeIds);
+        }
+
+        return $builder->get()->getResultArray();
+    }
+
+    /**
+     * Get employees with punch statistics for a date range
+     *
+     * Eager loads punch data to avoid multiple queries
+     *
+     * @param string $startDate Start date (Y-m-d)
+     * @param string $endDate End date (Y-m-d)
+     * @param array|null $employeeIds Optional filter
+     * @return array Employees with punch statistics
+     */
+    public function getWithPunchStats(string $startDate, string $endDate, ?array $employeeIds = null): array
+    {
+        $builder = $this->db->table('employees e')
+            ->select('
+                e.id,
+                e.name,
+                e.department,
+                e.position,
+                e.expected_hours_daily,
+                COUNT(DISTINCT DATE(tp.punch_time)) as days_worked,
+                COUNT(tp.id) as total_punches,
+                MIN(
+                    CASE
+                        WHEN tp.punch_type = "entrada"
+                        THEN tp.punch_time
+                        ELSE NULL
+                    END
+                ) as first_punch,
+                MAX(
+                    CASE
+                        WHEN tp.punch_type = "saida"
+                        THEN tp.punch_time
+                        ELSE NULL
+                    END
+                ) as last_punch
+            ')
+            ->join('time_punches tp', 'e.id = tp.employee_id AND DATE(tp.punch_time) BETWEEN ' . $this->db->escape($startDate) . ' AND ' . $this->db->escape($endDate), 'left')
+            ->where('e.active', 1)
+            ->groupBy('e.id');
+
+        if ($employeeIds !== null && !empty($employeeIds)) {
+            $builder->whereIn('e.id', $employeeIds);
+        }
+
+        return $builder->get()->getResultArray();
+    }
+
+    /**
+     * Get active employees with department info (optimized)
+     *
+     * @param string|null $department Filter by department
+     * @return array
+     */
+    public function getActiveWithDepartment(?string $department = null): array
+    {
+        $builder = $this->select('
+                id,
+                name,
+                email,
+                role,
+                department,
+                position,
+                work_schedule_start,
+                work_schedule_end,
+                expected_hours_daily
+            ')
+            ->where('active', 1)
+            ->orderBy('department', 'ASC')
+            ->orderBy('name', 'ASC');
+
+        if ($department !== null) {
+            $builder->where('department', $department);
+        }
+
+        return $builder->findAll();
+    }
 }
