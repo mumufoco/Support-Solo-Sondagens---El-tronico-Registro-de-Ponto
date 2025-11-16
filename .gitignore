@@ -87,6 +87,7 @@ phpunit
 vendor/
 composer.lock
 composer.phar
+.composer/
 
 #-------------------------
 # IDE Files

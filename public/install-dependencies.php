@@ -140,6 +140,28 @@ $composerPhar = $rootPath . '/composer.phar';
                 }
 
                 try {
+                    // Configurar variáveis de ambiente ANTES de qualquer operação
+                    if (!getenv('HOME')) {
+                        putenv('HOME=' . $rootPath);
+                        $_SERVER['HOME'] = $rootPath;
+                    }
+
+                    if (!getenv('COMPOSER_HOME')) {
+                        $composerHome = $rootPath . '/.composer';
+                        putenv('COMPOSER_HOME=' . $composerHome);
+                        $_SERVER['COMPOSER_HOME'] = $composerHome;
+
+                        // Criar diretório .composer se não existir
+                        if (!is_dir($composerHome)) {
+                            @mkdir($composerHome, 0755, true);
+                        }
+                    }
+
+                    // Definir $argv globalmente para evitar warnings
+                    if (!isset($GLOBALS['argv'])) {
+                        $GLOBALS['argv'] = $_SERVER['argv'] = array();
+                    }
+
                     // Step 1: Baixar Composer se não existir
                     if (!file_exists($composerPhar)) {
                         logStep('Baixando Composer...', 'info');
@@ -160,9 +182,9 @@ $composerPhar = $rootPath . '/composer.phar';
                         // Executar instalador
                         logStep('Executando instalador do Composer...', 'info');
 
-                        // Suprimir warnings do instalador (como unlink de composer.sig)
+                        // Suprimir warnings do instalador (como unlink de composer.sig e undefined $argv)
                         $oldErrorReporting = error_reporting();
-                        error_reporting($oldErrorReporting & ~E_WARNING);
+                        error_reporting($oldErrorReporting & ~E_WARNING & ~E_NOTICE);
 
                         ob_start();
                         include $composerSetup;
@@ -205,7 +227,7 @@ $composerPhar = $rootPath . '/composer.phar';
                         logStep('⚠ Funções exec/passthru desabilitadas - usando método alternativo', 'warning');
 
                         // Método alternativo: incluir Composer diretamente via PHP
-                        $_SERVER['argv'] = ['composer.phar', '--version'];
+                        $GLOBALS['argv'] = $_SERVER['argv'] = ['composer.phar', '--version'];
                         $_SERVER['argc'] = 2;
 
                         ob_start();
@@ -239,10 +261,8 @@ $composerPhar = $rootPath . '/composer.phar';
                         // Método alternativo: executar Composer via include
                         logStep('Executando Composer via include (método alternativo)...', 'info');
 
-                        $_SERVER['argv'] = ['composer.phar', $command, '--no-interaction', '--optimize-autoloader'];
+                        $GLOBALS['argv'] = $_SERVER['argv'] = ['composer.phar', $command, '--no-interaction', '--optimize-autoloader'];
                         $_SERVER['argc'] = 4;
-
-                        putenv('COMPOSER_HOME=' . $rootPath);
 
                         ob_start();
                         try {
@@ -290,7 +310,7 @@ $composerPhar = $rootPath . '/composer.phar';
                     logStep('✗ ERRO: ' . $e->getMessage(), 'error');
                     logStep('Trace: ' . $e->getTraceAsString(), 'error');
                 } finally {
-                    // Limpar arquivos temporários (sempre executado)
+                    // Limpar arquivos e diretórios temporários (sempre executado)
                     $tempFiles = [
                         $rootPath . '/composer-setup.php',
                         $rootPath . '/composer.sig',
@@ -301,6 +321,12 @@ $composerPhar = $rootPath . '/composer.phar';
                         if (file_exists($tempFile)) {
                             @unlink($tempFile);
                         }
+                    }
+
+                    // Limpar diretório .composer se estiver vazio
+                    $composerHomeDir = $rootPath . '/.composer';
+                    if (is_dir($composerHomeDir) && count(scandir($composerHomeDir)) == 2) {
+                        @rmdir($composerHomeDir);
                     }
                 }
                 ?>
