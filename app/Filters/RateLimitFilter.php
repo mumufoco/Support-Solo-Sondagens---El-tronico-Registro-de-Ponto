@@ -5,39 +5,73 @@ namespace App\Filters;
 use CodeIgniter\Filters\FilterInterface;
 use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\ResponseInterface;
+use App\Services\Security\RateLimitService;
 
 /**
  * Rate Limit Filter
  *
- * Protects against abuse by limiting the number of requests per time window
+ * Applies rate limiting to requests using RateLimitService
+ *
+ * Features:
+ * - Per-endpoint rate limiting with configurable types
+ * - IP-based throttling with proxy header support
+ * - HTTP 429 responses with Retry-After header
+ * - X-RateLimit-* headers for API compliance
+ * - IP whitelisting support
+ * - Audit logging for rate limit violations
+ *
+ * Usage in app/Config/Filters.php:
+ * - Add to $aliases: 'ratelimit' => \App\Filters\RateLimitFilter::class
+ * - Add to $globals['before'] for all routes
+ * - Or apply to specific routes/groups
+ *
+ * @package App\Filters
  */
 class RateLimitFilter implements FilterInterface
 {
     /**
-     * Rate limit configuration
-     * Can be overridden by passing arguments to the filter
+     * Rate limit service
+     * @var RateLimitService
      */
-    protected $defaultLimits = [
-        'api' => [
-            'requests' => 60,  // 60 requests
-            'window' => 60,    // per 60 seconds (1 minute)
-        ],
-        'auth' => [
-            'requests' => 5,   // 5 requests
-            'window' => 300,   // per 300 seconds (5 minutes)
-        ],
-        'punch' => [
-            'requests' => 10,  // 10 requests
-            'window' => 60,    // per 60 seconds (1 minute)
-        ],
-        'default' => [
-            'requests' => 100, // 100 requests
-            'window' => 60,    // per 60 seconds (1 minute)
-        ],
+    protected RateLimitService $rateLimitService;
+
+    /**
+     * Endpoint-to-limit-type mapping
+     *
+     * Maps URL patterns to rate limit types defined in RateLimitService
+     *
+     * @var array
+     */
+    protected array $endpointLimits = [
+        'auth/login' => 'login',
+        'auth/forgot-password' => 'password_reset',
+        'auth/reset-password' => 'password_reset',
+        'auth/2fa/verify' => '2fa_verify',
+        'api/' => 'api',
+        'timesheet/punch' => 'general',
     ];
 
     /**
-     * Check rate limit before processing request
+     * Routes that should bypass rate limiting
+     *
+     * @var array
+     */
+    protected array $excludedRoutes = [
+        'health',
+        'status',
+        'ping',
+    ];
+
+    /**
+     * Constructor
+     */
+    public function __construct()
+    {
+        $this->rateLimitService = new RateLimitService();
+    }
+
+    /**
+     * Apply rate limiting before request processing
      *
      * @param RequestInterface $request
      * @param array|null $arguments
@@ -45,58 +79,43 @@ class RateLimitFilter implements FilterInterface
      */
     public function before(RequestInterface $request, $arguments = null)
     {
-        // Get rate limit type from arguments or determine from URL
-        $limitType = $arguments[0] ?? $this->determineLimitType($request);
+        // Get current route
+        $uri = $request->getUri();
+        $path = trim($uri->getPath(), '/');
 
-        // Get limit configuration
-        $config = $this->defaultLimits[$limitType] ?? $this->defaultLimits['default'];
-
-        // Get client identifier (IP address + user ID if authenticated)
-        $clientId = $this->getClientIdentifier();
-
-        // Generate rate limit key
-        $key = $this->getRateLimitKey($limitType, $clientId);
-
-        // Check rate limit
-        $allowed = $this->checkRateLimit($key, $config['requests'], $config['window']);
-
-        if (!$allowed) {
-            // Get retry after time
-            $retryAfter = $this->getRetryAfter($key, $config['window']);
-
-            // Log rate limit exceeded
-            $this->logRateLimitExceeded($clientId, $limitType, current_url());
-
-            // Return 429 Too Many Requests
-            if ($request->isAJAX() || $this->isApiRequest($request)) {
-                return service('response')
-                    ->setJSON([
-                        'success' => false,
-                        'error' => 'Muitas requisições. Tente novamente em alguns instantes.',
-                        'retry_after' => $retryAfter,
-                    ])
-                    ->setStatusCode(429)
-                    ->setHeader('Retry-After', $retryAfter)
-                    ->setHeader('X-RateLimit-Limit', $config['requests'])
-                    ->setHeader('X-RateLimit-Remaining', 0)
-                    ->setHeader('X-RateLimit-Reset', time() + $retryAfter);
+        // Check if route should be excluded
+        foreach ($this->excludedRoutes as $excludedRoute) {
+            if (strpos($path, $excludedRoute) !== false) {
+                return null;
             }
-
-            // For regular requests, show error page
-            session()->setFlashdata('error', "Muitas requisições. Aguarde {$retryAfter} segundos e tente novamente.");
-            return redirect()->back();
         }
 
-        // Add rate limit headers
-        $remaining = $this->getRemainingRequests($key, $config['requests']);
-        $reset = $this->getResetTime($key, $config['window']);
+        // Determine rate limit type for this endpoint
+        $limitType = $this->getLimitType($path);
+
+        // Generate unique key for this request
+        // Combine path and IP for granular rate limiting
+        $ip = $this->rateLimitService->getClientIp();
+        $key = $path . ':' . $ip;
+
+        // Attempt to perform action (check and increment)
+        $limitInfo = $this->rateLimitService->attempt($key, $limitType, $ip);
 
         // Store headers to add in after()
-        $request->rateLimitHeaders = [
-            'X-RateLimit-Limit' => $config['requests'],
-            'X-RateLimit-Remaining' => max(0, $remaining),
-            'X-RateLimit-Reset' => $reset,
-        ];
+        $request->rateLimitHeaders = $this->rateLimitService->getHeaders($limitInfo);
+
+        // Check if rate limit exceeded
+        if (!$limitInfo['allowed']) {
+            // Log rate limit exceeded
+            $this->logRateLimitExceeded($ip, $limitType, $path, $limitInfo);
+
+            return $this->rateLimitExceededResponse($request, $limitInfo);
+        }
+
+        // If we're close to the limit, log a warning
+        if ($limitInfo['remaining'] <= 5 && $limitInfo['remaining'] > 0) {
+            log_message('notice', "Rate limit warning for IP {$ip} on {$path}: {$limitInfo['remaining']} attempts remaining");
+        }
 
         return null;
     }
@@ -122,141 +141,74 @@ class RateLimitFilter implements FilterInterface
     }
 
     /**
-     * Determine rate limit type from request
+     * Generate HTTP 429 response for rate limit exceeded
      *
      * @param RequestInterface $request
+     * @param array $limitInfo
+     * @return ResponseInterface
+     */
+    protected function rateLimitExceededResponse(RequestInterface $request, array $limitInfo): ResponseInterface
+    {
+        $response = service('response');
+
+        // Calculate retry after time
+        $retryAfter = max(1, $limitInfo['reset_at'] - time());
+
+        // Set HTTP 429 status
+        $response->setStatusCode(429, 'Too Many Requests');
+
+        // Add Retry-After header (RFC 6585)
+        $response->setHeader('Retry-After', (string) $retryAfter);
+
+        // Add rate limit headers
+        foreach ($this->rateLimitService->getHeaders($limitInfo) as $header => $value) {
+            $response->setHeader($header, (string) $value);
+        }
+
+        // Get error message
+        $errorMessage = $this->rateLimitService->getErrorMessage($limitInfo);
+
+        // Return JSON response for API endpoints
+        if ($this->isApiRequest($request)) {
+            $response->setJSON([
+                'error' => true,
+                'success' => false,
+                'message' => $errorMessage,
+                'retry_after' => $retryAfter,
+                'limit' => $limitInfo['max_attempts'] ?? 0,
+                'remaining' => 0,
+                'reset_at' => $limitInfo['reset_at'] ?? 0,
+            ]);
+        } else {
+            // For web requests, show flash message and redirect
+            session()->setFlashdata('error', $errorMessage);
+            return redirect()->back();
+        }
+
+        return $response;
+    }
+
+    /**
+     * Determine rate limit type based on path
+     *
+     * @param string $path
      * @return string
      */
-    protected function determineLimitType(RequestInterface $request): string
+    protected function getLimitType(string $path): string
     {
-        $uri = $request->getUri();
-        $path = $uri->getPath();
-
-        // Check path patterns
-        if (strpos($path, '/api/') === 0) {
-            return 'api';
+        // Check exact matches first
+        if (isset($this->endpointLimits[$path])) {
+            return $this->endpointLimits[$path];
         }
 
-        if (strpos($path, '/auth/') === 0) {
-            return 'auth';
+        // Check pattern matches
+        foreach ($this->endpointLimits as $pattern => $limitType) {
+            if (strpos($path, $pattern) !== false) {
+                return $limitType;
+            }
         }
 
-        if (strpos($path, '/timesheet/punch') !== false) {
-            return 'punch';
-        }
-
-        return 'default';
-    }
-
-    /**
-     * Get client identifier
-     *
-     * @return string
-     */
-    protected function getClientIdentifier(): string
-    {
-        $session = session();
-        $userId = $session->get('user_id');
-
-        // Use user ID if authenticated, otherwise IP address
-        if ($userId) {
-            return 'user_' . $userId;
-        }
-
-        // Get client IP
-        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-
-        // Handle proxy IPs (take first IP)
-        if (strpos($ip, ',') !== false) {
-            $ip = trim(explode(',', $ip)[0]);
-        }
-
-        return 'ip_' . $ip;
-    }
-
-    /**
-     * Generate rate limit cache key
-     *
-     * @param string $type
-     * @param string $clientId
-     * @return string
-     */
-    protected function getRateLimitKey(string $type, string $clientId): string
-    {
-        $window = floor(time() / ($this->defaultLimits[$type]['window'] ?? 60));
-        return "ratelimit_{$type}_{$clientId}_{$window}";
-    }
-
-    /**
-     * Check if request is within rate limit
-     *
-     * @param string $key
-     * @param int $maxRequests
-     * @param int $window
-     * @return bool
-     */
-    protected function checkRateLimit(string $key, int $maxRequests, int $window): bool
-    {
-        $cache = \Config\Services::cache();
-
-        // Get current count
-        $count = $cache->get($key);
-
-        if ($count === null) {
-            // First request in this window
-            $cache->save($key, 1, $window);
-            return true;
-        }
-
-        if ($count >= $maxRequests) {
-            // Rate limit exceeded
-            return false;
-        }
-
-        // Increment counter
-        $cache->save($key, $count + 1, $window);
-        return true;
-    }
-
-    /**
-     * Get remaining requests in current window
-     *
-     * @param string $key
-     * @param int $maxRequests
-     * @return int
-     */
-    protected function getRemainingRequests(string $key, int $maxRequests): int
-    {
-        $cache = \Config\Services::cache();
-        $count = $cache->get($key) ?? 0;
-
-        return max(0, $maxRequests - $count);
-    }
-
-    /**
-     * Get time until rate limit resets
-     *
-     * @param string $key
-     * @param int $window
-     * @return int
-     */
-    protected function getResetTime(string $key, int $window): int
-    {
-        $currentWindow = floor(time() / $window);
-        return ($currentWindow + 1) * $window;
-    }
-
-    /**
-     * Get retry after seconds
-     *
-     * @param string $key
-     * @param int $window
-     * @return int
-     */
-    protected function getRetryAfter(string $key, int $window): int
-    {
-        $resetTime = $this->getResetTime($key, $window);
-        return max(1, $resetTime - time());
+        return 'general';
     }
 
     /**
@@ -267,15 +219,26 @@ class RateLimitFilter implements FilterInterface
      */
     protected function isApiRequest(RequestInterface $request): bool
     {
-        $uri = $request->getUri();
-        $path = $uri->getPath();
-
-        if (strpos($path, '/api/') === 0) {
+        // Check Accept header
+        $acceptHeader = $request->getHeaderLine('Accept');
+        if (strpos($acceptHeader, 'application/json') !== false) {
             return true;
         }
 
-        $accept = $request->getHeaderLine('Accept');
-        if (strpos($accept, 'application/json') !== false) {
+        // Check if path starts with /api
+        $path = trim($request->getUri()->getPath(), '/');
+        if (strpos($path, 'api/') === 0) {
+            return true;
+        }
+
+        // Check Content-Type header
+        $contentType = $request->getHeaderLine('Content-Type');
+        if (strpos($contentType, 'application/json') !== false) {
+            return true;
+        }
+
+        // Check if AJAX request
+        if ($request->isAJAX()) {
             return true;
         }
 
@@ -285,35 +248,91 @@ class RateLimitFilter implements FilterInterface
     /**
      * Log rate limit exceeded event
      *
-     * @param string $clientId
-     * @param string $limitType
-     * @param string $url
+     * @param string $ip IP address
+     * @param string $limitType Rate limit type
+     * @param string $path Request path
+     * @param array $limitInfo Limit information
      * @return void
      */
-    protected function logRateLimitExceeded(string $clientId, string $limitType, string $url): void
+    protected function logRateLimitExceeded(string $ip, string $limitType, string $path, array $limitInfo): void
     {
         try {
-            log_message('warning', "Rate limit exceeded: {$clientId} - {$limitType} - {$url}");
+            // Log warning message
+            log_message('warning', "Rate limit exceeded: IP={$ip}, Type={$limitType}, Path={$path}, Attempts={$limitInfo['attempts']}/{$limitInfo['max_attempts']}");
 
             // Log to audit if user is authenticated
             $session = session();
-            $userId = $session->get('user_id');
+            $employeeId = $session->get('employee_id');
 
-            if ($userId) {
+            if ($employeeId) {
                 $auditModel = new \App\Models\AuditLogModel();
                 $auditModel->log(
-                    $userId,
+                    $employeeId,
                     'RATE_LIMIT_EXCEEDED',
                     'system',
                     null,
                     null,
-                    ['limit_type' => $limitType, 'url' => $url],
-                    "Limite de requisições excedido: {$limitType}",
+                    [
+                        'limit_type' => $limitType,
+                        'path' => $path,
+                        'ip' => $ip,
+                        'attempts' => $limitInfo['attempts'],
+                        'max_attempts' => $limitInfo['max_attempts'],
+                        'reset_at' => $limitInfo['reset_at'],
+                    ],
+                    "Limite de requisições excedido: {$limitType} em {$path}",
                     'warning'
                 );
             }
         } catch (\Exception $e) {
-            log_message('error', 'Failed to log rate limit: ' . $e->getMessage());
+            log_message('error', 'Failed to log rate limit exceeded: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Add custom endpoint limit mapping
+     *
+     * Useful for dynamic configuration or testing
+     *
+     * @param string $endpoint
+     * @param string $limitType
+     * @return void
+     */
+    public function addEndpointLimit(string $endpoint, string $limitType): void
+    {
+        $this->endpointLimits[$endpoint] = $limitType;
+    }
+
+    /**
+     * Exclude route from rate limiting
+     *
+     * @param string $route
+     * @return void
+     */
+    public function excludeRoute(string $route): void
+    {
+        if (!in_array($route, $this->excludedRoutes, true)) {
+            $this->excludedRoutes[] = $route;
+        }
+    }
+
+    /**
+     * Get current endpoint limits configuration
+     *
+     * @return array
+     */
+    public function getEndpointLimits(): array
+    {
+        return $this->endpointLimits;
+    }
+
+    /**
+     * Get excluded routes
+     *
+     * @return array
+     */
+    public function getExcludedRoutes(): array
+    {
+        return $this->excludedRoutes;
     }
 }
