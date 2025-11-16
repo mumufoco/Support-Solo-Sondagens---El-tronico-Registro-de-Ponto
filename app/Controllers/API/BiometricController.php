@@ -73,12 +73,14 @@ class BiometricController extends ResourceController
         }
 
         // Save biometric template
+        // SECURITY: Store only hash/identifier, not physical file path
+        // The file path should be managed by DeepFaceService internally
         $templateData = [
             'employee_id' => $employee->id,
             'biometric_type' => 'face',
             'template_data' => null,
-            'file_path' => $result['face_path'],
-            'image_hash' => $result['image_hash'],
+            'file_path' => null, // Don't store physical path - security risk
+            'image_hash' => $result['image_hash'], // Use hash as identifier
             'enrollment_quality' => $result['confidence'],
             'model_used' => 'VGG-Face',
             'active' => true,
@@ -191,12 +193,13 @@ class BiometricController extends ResourceController
             return $this->fail('Acesso negado.', 403);
         }
 
-        // Delete file if exists
-        if ($template->file_path && file_exists($template->file_path)) {
-            unlink($template->file_path);
+        // Delete biometric data through DeepFace service
+        // SECURITY: Don't use stored file_path - let service manage file deletion
+        if ($template->image_hash) {
+            $this->deepfaceService->deleteFaceByHash($template->image_hash);
         }
 
-        // Delete template
+        // Delete template from database
         $this->biometricModel->delete($id);
 
         // Check if employee still has other face templates
