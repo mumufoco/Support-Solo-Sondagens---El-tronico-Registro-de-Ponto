@@ -1,0 +1,45 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Vendor
+/vendor/
+/node_modules/
+
+# Storage
+/storage/cache/*
+!/storage/cache/.gitkeep
+/storage/logs/*
+!/storage/logs/.gitkeep
+/storage/uploads/*
+!/storage/uploads/.gitkeep
+/storage/faces/*
+!/storage/faces/.gitkeep
+/storage/keys/*
+!/storage/keys/.gitkeep
+
+# DeepFace
+/deepface-api/venv/
+/deepface-api/__pycache__/
+/deepface-api/*.pyc
+/deepface-api/.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Composer
+composer.phar
+composer.lock
+
+# Testing
+/tests/_output/
+/tests/_support/_generated/
