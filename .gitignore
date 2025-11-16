@@ -191,6 +191,9 @@ public/mix-manifest.json
 *.backup
 *.bak
 
+# Exception: Allow distribution database schema
+!public/database.sql
+
 #-------------------------
 # Documentation Build
 #-------------------------
