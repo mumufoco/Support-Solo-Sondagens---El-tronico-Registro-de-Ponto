@@ -76,7 +76,7 @@ class SettingModel extends Model
     /**
      * Set setting value
      */
-    public function set(string $key, $value, ?string $type = null): bool
+    public function updateSetting(string $key, $value, ?string $type = null): bool
     {
         $existing = $this->where('key', $key)->first();
 
@@ -186,7 +186,7 @@ class SettingModel extends Model
         $db->transStart();
 
         foreach ($settings as $key => $value) {
-            $this->set($key, $value);
+            $this->updateSetting($key, $value);
         }
 
         $db->transComplete();
