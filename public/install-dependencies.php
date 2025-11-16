@@ -6,6 +6,12 @@
  * Ideal para hospedagem compartilhada sem acesso SSH
  *
  * Acesse: http://seu-dominio.com/install-dependencies.php
+ *
+ * IMPORTANTE:
+ * - Suporta ambientes com exec/passthru desabilitados
+ * - Suprime warnings do instalador do Composer (composer.sig)
+ * - Limpa automaticamente arquivos temporários
+ * - DELETE este arquivo após uso por segurança!
  */
 
 set_time_limit(300); // 5 minutos
@@ -153,11 +159,22 @@ $composerPhar = $rootPath . '/composer.phar';
 
                         // Executar instalador
                         logStep('Executando instalador do Composer...', 'info');
+
+                        // Suprimir warnings do instalador (como unlink de composer.sig)
+                        $oldErrorReporting = error_reporting();
+                        error_reporting($oldErrorReporting & ~E_WARNING);
+
                         ob_start();
                         include $composerSetup;
                         $installOutput = ob_get_clean();
 
-                        unlink($composerSetup);
+                        // Restaurar error reporting
+                        error_reporting($oldErrorReporting);
+
+                        // Limpar arquivos temporários
+                        @unlink($composerSetup);
+                        @unlink($rootPath . '/composer.sig');
+                        @unlink($rootPath . '/composer-temp.phar');
 
                         if (!file_exists($composerPhar)) {
                             throw new Exception('Falha ao instalar Composer. Output: ' . $installOutput);
@@ -272,6 +289,19 @@ $composerPhar = $rootPath . '/composer.phar';
                 } catch (Exception $e) {
                     logStep('✗ ERRO: ' . $e->getMessage(), 'error');
                     logStep('Trace: ' . $e->getTraceAsString(), 'error');
+                } finally {
+                    // Limpar arquivos temporários (sempre executado)
+                    $tempFiles = [
+                        $rootPath . '/composer-setup.php',
+                        $rootPath . '/composer.sig',
+                        $rootPath . '/composer-temp.phar'
+                    ];
+
+                    foreach ($tempFiles as $tempFile) {
+                        if (file_exists($tempFile)) {
+                            @unlink($tempFile);
+                        }
+                    }
                 }
                 ?>
                 </div>
