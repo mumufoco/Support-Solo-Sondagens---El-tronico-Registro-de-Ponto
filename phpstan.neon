@@ -1,0 +1,63 @@
+includes:
+    - vendor/phpstan/phpstan/conf/bleedingEdge.neon
+
+parameters:
+    level: 6
+    paths:
+        - app/Controllers
+        - app/Models
+        - app/Services
+        - app/Filters
+        - app/Helpers
+
+    excludePaths:
+        - app/Views/*
+        - app/Config/Routes.php
+        - app/ThirdParty/*
+
+    ignoreErrors:
+        # CodeIgniter 4 specific issues
+        - '#Access to an undefined property CodeIgniter\\Entity\\Entity::\$[a-zA-Z_]+#'
+        - '#Call to an undefined method CodeIgniter\\Database\\BaseBuilder::[a-zA-Z_]+\(\)#'
+        - '#Call to an undefined method CodeIgniter\\Model::[a-zA-Z_]+\(\)#'
+        - '#Method App\\Controllers\\[a-zA-Z_]+Controller::getAuthenticatedEmployee\(\) should return array but returns array\|null#'
+
+    # Bootstrap file for CodeIgniter
+    bootstrapFiles:
+        - vendor/codeigniter4/framework/system/Test/bootstrap.php
+
+    # Treat PHP native types strictly
+    treatPhpDocTypesAsCertain: true
+
+    # Check missing return types
+    checkMissingIterableValueType: false
+
+    # Check missing typehints
+    checkGenericClassInNonGenericObjectType: false
+
+    # Pollyfills
+    pollyfillPackages:
+        php: '8.2'
+
+    # Universal object crates
+    universalObjectCratesClasses:
+        - stdClass
+
+    # Stub files
+    stubFiles:
+        - stubs/codeigniter.stub
+
+    # Report unmatched ignored errors
+    reportUnmatchedIgnoredErrors: false
+
+    # Parallel processing
+    parallel:
+        jobSize: 20
+        maximumNumberOfProcesses: 32
+        minimumNumberOfJobsPerProcess: 2
+
+    # Custom rules
+    dynamicConstantNames:
+        - APP_NAMESPACE
+        - CI_DEBUG
+        - ENVIRONMENT
