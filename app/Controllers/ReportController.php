@@ -705,6 +705,19 @@ class ReportController extends BaseController
         foreach ($records as $record) {
             $employee = $this->employeeModel->find($record->employee_id);
             if ($employee) {
+                // Count late arrivals and absences for the period
+                $lateCount = $this->timesheetService->countLateArrivals(
+                    $record->employee_id,
+                    $startDate,
+                    $endDate
+                );
+
+                $absenceCount = $this->timesheetService->countAbsences(
+                    $record->employee_id,
+                    $startDate,
+                    $endDate
+                );
+
                 $data[] = [
                     'employee_name' => $employee->name,
                     'department' => $employee->department,
@@ -713,8 +726,8 @@ class ReportController extends BaseController
                     'total_expected' => (float)$record->total_expected,
                     'extra' => (float)$record->extra,
                     'owed' => (float)$record->owed,
-                    'late_count' => 0, // TODO: count from late_arrivals
-                    'absence_count' => 0 // TODO: count from absences
+                    'late_count' => $lateCount,
+                    'absence_count' => $absenceCount,
                 ];
             }
         }
