@@ -4,6 +4,7 @@ namespace App\Controllers\API;
 
 use CodeIgniter\RESTful\ResourceController;
 use App\Services\ChatService;
+use App\Services\Auth\AuthService;
 use App\Models\EmployeeModel;
 
 /**
@@ -17,11 +18,13 @@ class ChatAPIController extends ResourceController
     protected $format    = 'json';
 
     protected ChatService $chatService;
+    protected AuthService $authService;
     protected EmployeeModel $employeeModel;
 
     public function __construct()
     {
         $this->chatService = new ChatService();
+        $this->authService = new AuthService();
         $this->employeeModel = new EmployeeModel();
     }
 
@@ -55,13 +58,46 @@ class ChatAPIController extends ResourceController
     }
 
     /**
-     * Validate Bearer token
+     * Validate Bearer token (JWT)
+     *
+     * Decodes and validates JWT token using AuthService.
+     * Returns employee_id if valid, null otherwise.
+     *
+     * @param string $token JWT token
+     * @return int|null Employee ID if valid
      */
     protected function validateToken(string $token): ?int
     {
-        // TODO: Implement JWT or API token validation
-        // For now, return null
-        return null;
+        try {
+            // Validate JWT token
+            $payload = $this->authService->validateJWT($token);
+
+            if (!$payload) {
+                log_message('warning', 'Invalid JWT token provided to Chat API');
+                return null;
+            }
+
+            // Extract employee_id from payload
+            $employeeId = $payload['sub'] ?? null;
+
+            if (!$employeeId) {
+                log_message('error', 'JWT token missing subject (employee_id)');
+                return null;
+            }
+
+            // Verify employee exists and is active
+            $employee = $this->employeeModel->find($employeeId);
+
+            if (!$employee || !$employee->active) {
+                log_message('warning', 'JWT token for inactive or non-existent employee: ' . $employeeId);
+                return null;
+            }
+
+            return (int)$employeeId;
+        } catch (\Exception $e) {
+            log_message('error', 'JWT validation error in Chat API: ' . $e->getMessage());
+            return null;
+        }
     }
 
     /**

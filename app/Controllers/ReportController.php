@@ -13,6 +13,7 @@ use App\Services\TimesheetService;
 use App\Services\PDFService;
 use App\Services\ExcelService;
 use App\Services\CSVService;
+use App\Services\Queue\ReportQueueService;
 
 /**
  * Report Controller
@@ -31,6 +32,7 @@ class ReportController extends BaseController
     protected $pdfService;
     protected $excelService;
     protected $csvService;
+    protected $queueService;
     protected $cacheDir;
 
     public function __construct()
@@ -45,6 +47,7 @@ class ReportController extends BaseController
         $this->pdfService = new PDFService();
         $this->excelService = new ExcelService();
         $this->csvService = new CSVService();
+        $this->queueService = new ReportQueueService();
         $this->cacheDir = WRITEPATH . 'cache/reports/';
 
         // Ensure cache directory exists
@@ -421,12 +424,29 @@ class ReportController extends BaseController
 
         // Check if needs queue (>10,000 records)
         if (count($data) > 10000 && in_array($format, ['pdf', 'excel', 'csv'])) {
-            // TODO: Implement queue for large reports
+            // Enqueue large report for background processing
+            $result = $this->queueService->enqueue(
+                $employee['id'],
+                $type,
+                $format,
+                $filters
+            );
+
+            if (!$result['success']) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'error'   => 'Falha ao enfileirar relatório: ' . ($result['error'] ?? 'Unknown error'),
+                ])->setStatusCode(500);
+            }
+
+            log_message('info', "Large report queued: {$result['job_id']} ({count($data)} records)");
+
             return $this->response->setJSON([
                 'success' => true,
-                'queued' => true,
-                'message' => 'Relatório muito grande. Será processado em background. Você receberá um email quando estiver pronto.',
-                'job_id' => uniqid('report_')
+                'queued'  => true,
+                'message' => 'Relatório muito grande (' . number_format(count($data)) . ' registros). Será processado em background. Você receberá um email quando estiver pronto.',
+                'job_id'  => $result['job_id'],
+                'status_url' => base_url("api/reports/status/{$result['job_id']}"),
             ]);
         }
 

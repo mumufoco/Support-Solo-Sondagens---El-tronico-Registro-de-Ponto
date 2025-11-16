@@ -16,9 +16,15 @@ class DashboardController extends BaseController
         $justificationModel = new JustificationModel();
         $timePunchModel = new TimePunchModel();
 
-        // Pegar funcionários da equipe (todos ativos por enquanto)
-        // TODO: Implementar hierarquia de gestores
-        $teamEmployees = $employeeModel->where('active', true)->findAll();
+        // Pegar funcionários da equipe do gestor logado
+        $currentEmployeeId = session()->get('employee_id');
+
+        if (!$currentEmployeeId) {
+            return redirect()->to('/auth/login')->with('error', 'Sessão expirada.');
+        }
+
+        // Get all subordinates (direct + indirect) using hierarchy
+        $teamEmployees = $employeeModel->getAllSubordinates($currentEmployeeId, true);
 
         $data = [
             'team_count' => count($teamEmployees),

@@ -7,6 +7,7 @@ use App\Models\EmployeeModel;
 use App\Models\BiometricTemplateModel;
 use App\Models\UserConsentModel;
 use App\Models\AuditLogModel;
+use App\Services\Biometric\SourceAFISService;
 
 /**
  * FingerprintController
@@ -20,6 +21,7 @@ class FingerprintController extends BaseController
     protected $biometricModel;
     protected $consentModel;
     protected $auditModel;
+    protected $sourceAFISService;
 
     public function __construct()
     {
@@ -27,6 +29,7 @@ class FingerprintController extends BaseController
         $this->biometricModel = new BiometricTemplateModel();
         $this->consentModel = new UserConsentModel();
         $this->auditModel = new AuditLogModel();
+        $this->sourceAFISService = new SourceAFISService();
     }
 
     /**
@@ -438,10 +441,12 @@ class FingerprintController extends BaseController
     }
 
     /**
-     * Compare two fingerprint templates
+     * Compare two fingerprint templates using SourceAFIS
      *
-     * NOTE: This is a simplified comparison for demonstration.
-     * In production, use SourceAFIS library for accurate matching.
+     * Uses SourceAFISService with configurable backend:
+     * - 'api': SourceAFIS REST API (production recommended)
+     * - 'native': PHP-based minutiae matching algorithm
+     * - 'mock': Hash-based comparison (development only)
      *
      * @param string $template1 First template
      * @param string $template2 Second template
@@ -449,33 +454,14 @@ class FingerprintController extends BaseController
      */
     private function compareFingerprints(string $template1, string $template2): float
     {
-        // TODO: Implement actual SourceAFIS comparison
-        // For now, use a simple hash comparison
+        $result = $this->sourceAFISService->compareTemplates($template1, $template2);
 
-        $hash1 = hash('sha256', $template1);
-        $hash2 = hash('sha256', $template2);
-
-        if ($hash1 === $hash2) {
-            return 1.0; // Perfect match
+        if (!$result['success']) {
+            log_message('error', 'SourceAFIS comparison failed: ' . ($result['error'] ?? 'Unknown error'));
+            return 0.0;
         }
 
-        // Calculate Hamming distance for demonstration
-        $distance = 0;
-        $maxLength = max(strlen($template1), strlen($template2));
-
-        for ($i = 0; $i < $maxLength; $i++) {
-            $char1 = $i < strlen($template1) ? $template1[$i] : '';
-            $char2 = $i < strlen($template2) ? $template2[$i] : '';
-
-            if ($char1 !== $char2) {
-                $distance++;
-            }
-        }
-
-        // Convert distance to similarity (inverse)
-        $similarity = 1.0 - ($distance / $maxLength);
-
-        return max(0.0, min(1.0, $similarity));
+        return $result['similarity'] ?? 0.0;
     }
 
     /**

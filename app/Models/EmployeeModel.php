@@ -19,6 +19,7 @@ class EmployeeModel extends Model
         'cpf',
         'unique_code',
         'role',
+        'manager_id',
         'department',
         'position',
         'expected_hours_daily',
@@ -322,5 +323,169 @@ class EmployeeModel extends Model
         }
 
         return null;
+    }
+
+    // ==================== Manager Hierarchy Methods ====================
+
+    /**
+     * Get all direct subordinates of a manager
+     *
+     * @param int $managerId Manager's employee ID
+     * @param bool $activeOnly Only active employees (default: true)
+     * @return array List of subordinate employees
+     */
+    public function getDirectSubordinates(int $managerId, bool $activeOnly = true): array
+    {
+        $builder = $this->where('manager_id', $managerId);
+
+        if ($activeOnly) {
+            $builder->where('active', true);
+        }
+
+        return $builder->orderBy('name', 'ASC')->findAll();
+    }
+
+    /**
+     * Get all subordinates recursively (entire hierarchy below manager)
+     *
+     * Uses recursive CTE (Common Table Expression) for efficient hierarchical query
+     *
+     * @param int $managerId Manager's employee ID
+     * @param bool $activeOnly Only active employees (default: true)
+     * @return array List of all subordinates (direct + indirect)
+     */
+    public function getAllSubordinates(int $managerId, bool $activeOnly = true): array
+    {
+        $activeCondition = $activeOnly ? 'AND e.active = 1' : '';
+
+        // Recursive CTE to get entire hierarchy
+        $sql = "
+            WITH RECURSIVE subordinates AS (
+                -- Base case: direct reports
+                SELECT
+                    id, name, email, role, department, position, manager_id, active, 1 as level
+                FROM employees
+                WHERE manager_id = ? {$activeCondition}
+
+                UNION ALL
+
+                -- Recursive case: reports of reports
+                SELECT
+                    e.id, e.name, e.email, e.role, e.department, e.position, e.manager_id, e.active, s.level + 1
+                FROM employees e
+                INNER JOIN subordinates s ON e.manager_id = s.id
+                WHERE 1=1 {$activeCondition}
+            )
+            SELECT * FROM subordinates
+            ORDER BY level, name
+        ";
+
+        $query = $this->db->query($sql, [$managerId]);
+
+        return $query->getResultArray();
+    }
+
+    /**
+     * Get IDs of all subordinates (useful for WHERE IN queries)
+     *
+     * @param int $managerId Manager's employee ID
+     * @param bool $activeOnly Only active employees (default: true)
+     * @return array Array of employee IDs
+     */
+    public function getSubordinateIds(int $managerId, bool $activeOnly = true): array
+    {
+        $subordinates = $this->getAllSubordinates($managerId, $activeOnly);
+
+        return array_column($subordinates, 'id');
+    }
+
+    /**
+     * Check if an employee is subordinate to a manager (directly or indirectly)
+     *
+     * @param int $employeeId Employee to check
+     * @param int $managerId Manager to check against
+     * @return bool True if employee is subordinate
+     */
+    public function isSubordinateTo(int $employeeId, int $managerId): bool
+    {
+        $subordinateIds = $this->getSubordinateIds($managerId, false);
+
+        return in_array($employeeId, $subordinateIds);
+    }
+
+    /**
+     * Get manager chain for an employee (up to top of hierarchy)
+     *
+     * @param int $employeeId Employee ID
+     * @return array Array of managers from direct to top-level
+     */
+    public function getManagerChain(int $employeeId): array
+    {
+        $sql = "
+            WITH RECURSIVE managers AS (
+                -- Base case: employee's direct manager
+                SELECT
+                    e2.id, e2.name, e2.email, e2.role, e2.department, e2.manager_id, 1 as level
+                FROM employees e1
+                LEFT JOIN employees e2 ON e1.manager_id = e2.id
+                WHERE e1.id = ? AND e2.id IS NOT NULL
+
+                UNION ALL
+
+                -- Recursive case: manager's manager
+                SELECT
+                    e.id, e.name, e.email, e.role, e.department, e.manager_id, m.level + 1
+                FROM employees e
+                INNER JOIN managers m ON e.id = m.manager_id
+            )
+            SELECT * FROM managers
+            ORDER BY level
+        ";
+
+        $query = $this->db->query($sql, [$employeeId]);
+
+        return $query->getResultArray();
+    }
+
+    /**
+     * Get team statistics for a manager
+     *
+     * @param int $managerId Manager ID
+     * @return array Statistics about team
+     */
+    public function getTeamStats(int $managerId): array
+    {
+        $subordinateIds = $this->getSubordinateIds($managerId, true);
+
+        if (empty($subordinateIds)) {
+            return [
+                'total_count' => 0,
+                'by_department' => [],
+                'by_role' => [],
+                'active_count' => 0,
+            ];
+        }
+
+        $subordinates = $this->whereIn('id', $subordinateIds)->findAll();
+
+        // Count by department
+        $byDepartment = [];
+        $byRole = [];
+
+        foreach ($subordinates as $employee) {
+            // Count by department
+            $dept = $employee->department ?? 'Sem Departamento';
+            $byDepartment[$dept] = ($byDepartment[$dept] ?? 0) + 1;
+
+            // Count by role
+            $byRole[$employee->role] = ($byRole[$employee->role] ?? 0) + 1;
+        }
+
+        return [
+            'total_count' => count($subordinates),
+            'by_department' => $byDepartment,
+            'by_role' => $byRole,
+            'active_count' => count($subordinates), // All are active due to filter
+        ];
     }
 }
