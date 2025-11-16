@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\Biometric;
 
 use App\Models\SettingModel;
 use App\Models\BiometricTemplateModel;
