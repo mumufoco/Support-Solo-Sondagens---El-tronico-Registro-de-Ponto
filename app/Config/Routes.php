@@ -44,7 +44,7 @@ $routes->group('timesheet', ['filter' => 'auth'], static function ($routes) {
     $routes->get('punch', 'Timesheet\TimePunchController::index');
     $routes->post('punch', 'Timesheet\TimePunchController::punch');
     $routes->post('punch/code', 'Timesheet\TimePunchController::punchByCode');
-    $routes->post('punch/qr', 'Timesheet\TimePunchController::punchByQR');
+    $routes->post('punch/qr', 'Timesheet\TimePunchController::punchByQRCode');
     $routes->post('punch/face', 'Timesheet\TimePunchController::punchByFace');
 
     // Timesheet history

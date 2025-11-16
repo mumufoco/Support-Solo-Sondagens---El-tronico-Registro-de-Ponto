@@ -361,16 +361,26 @@ class EmployeeModel extends Model
      */
     public function getAllSubordinates(int $managerId, bool $activeOnly = true): array
     {
-        $activeCondition = $activeOnly ? 'AND e.active = 1' : '';
+        // Build conditions and params array for secure parameterized query
+        $params = [$managerId];
+        $baseActiveCondition = '';
+        $recursiveActiveCondition = '';
 
-        // Recursive CTE to get entire hierarchy
+        if ($activeOnly) {
+            $baseActiveCondition = 'AND e.active = ?';
+            $recursiveActiveCondition = 'AND e.active = ?';
+            $params[] = 1;  // for base case
+            $params[] = 1;  // for recursive case
+        }
+
+        // Recursive CTE to get entire hierarchy - SAFE: All params are bound
         $sql = "
             WITH RECURSIVE subordinates AS (
                 -- Base case: direct reports
                 SELECT
                     id, name, email, role, department, position, manager_id, active, 1 as level
-                FROM employees
-                WHERE manager_id = ? {$activeCondition}
+                FROM employees e
+                WHERE manager_id = ? {$baseActiveCondition}
 
                 UNION ALL
 
@@ -379,13 +389,13 @@ class EmployeeModel extends Model
                     e.id, e.name, e.email, e.role, e.department, e.position, e.manager_id, e.active, s.level + 1
                 FROM employees e
                 INNER JOIN subordinates s ON e.manager_id = s.id
-                WHERE 1=1 {$activeCondition}
+                WHERE 1=1 {$recursiveActiveCondition}
             )
             SELECT * FROM subordinates
             ORDER BY level, name
         ";
 
-        $query = $this->db->query($sql, [$managerId]);
+        $query = $this->db->query($sql, $params);
 
         return $query->getResultArray();
     }
