@@ -45,6 +45,45 @@ Acesse: http://localhost:8080
 
 ---
 
+## 🌐 Instalação Alternativa: Via Navegador Web
+
+**Ideal para usuários não-técnicos ou instalação em servidores de hospedagem!**
+
+### Pré-requisitos
+- Servidor web (Apache/Nginx) com PHP 8.1+ configurado
+- MySQL 8.0+ instalado
+- Composer instalado e `composer install` executado
+
+### Passos
+
+1. **Acesse o instalador web**:
+   ```
+   http://seu-dominio.com/install.php
+   ```
+
+2. **Siga o assistente interativo** (5 etapas):
+   - ✅ Verificação automática de requisitos
+   - ✅ Configuração do banco de dados via formulário
+   - ✅ Criação de usuário administrador personalizado
+   - ✅ Execução automática de migrations e seeders
+   - ✅ Confirmação e próximos passos
+
+3. **DELETE o arquivo após instalação**:
+   ```bash
+   rm public/install.php
+   ```
+
+**Documentação completa**: [WEB_INSTALLER_GUIDE.md](docs/WEB_INSTALLER_GUIDE.md)
+
+**Vantagens**:
+- 🎯 Interface gráfica amigável
+- ✅ Validação em tempo real
+- 📊 Logs visuais de instalação
+- 🔒 Proteção contra reinstalação
+- 💡 Ideal para produção
+
+---
+
 ## 📊 O Que Está Incluído
 
 ### ✅ Fases Implementadas (0-17+)
