@@ -53,10 +53,10 @@ class GeofenceService
 
         $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
 
-        // Distância em metros
+        // Distância em metros (retornar sem arredondamento para maior precisão)
         $distance = self::EARTH_RADIUS * $c;
 
-        return round($distance, 2);
+        return $distance;
     }
 
     /**
@@ -99,7 +99,7 @@ class GeofenceService
         }
 
         $kilometers = $distanceInMeters / 1000;
-        return round($kilometers, 1) . 'km';
+        return number_format($kilometers, 1, '.', '') . 'km';
     }
 
     /**
