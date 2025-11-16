@@ -84,8 +84,8 @@ phpunit
 #-------------------------
 # Composer
 #-------------------------
-vendor/
-composer.lock
+# NOTE: vendor/ and composer.lock are tracked in this project
+# to ensure consistent dependencies across all environments
 composer.phar
 .composer/
 
