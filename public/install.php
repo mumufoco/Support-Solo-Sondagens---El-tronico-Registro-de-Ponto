@@ -434,7 +434,7 @@ function createAdminUser() {
         'threads' => 2
     ]);
 
-    $uniqueCode = 'ADM' . str_pad(1, 6, '0', STR_PAD_LEFT);
+    $uniqueCode = 'ADM' . str_pad(1, 5, '0', STR_PAD_LEFT); // ADM00001 = 8 chars
 
     // Check if admin already exists
     $stmt = $pdo->prepare("SELECT id FROM employees WHERE email = :email LIMIT 1");

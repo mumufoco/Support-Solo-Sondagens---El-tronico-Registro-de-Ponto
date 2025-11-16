@@ -40,7 +40,7 @@ CREATE TABLE `employees` (
   `email` varchar(255) NOT NULL COMMENT 'E-mail único para login',
   `password` varchar(255) NOT NULL COMMENT 'Senha hash Argon2id',
   `cpf` varchar(14) NOT NULL COMMENT 'CPF formatado (XXX.XXX.XXX-XX)',
-  `unique_code` varchar(8) NOT NULL COMMENT 'Código único para registro de ponto',
+  `unique_code` varchar(10) NOT NULL COMMENT 'Código único para registro de ponto',
   `role` enum('admin','gestor','funcionario') NOT NULL DEFAULT 'funcionario' COMMENT 'Perfil de acesso',
   `department` varchar(100) DEFAULT NULL COMMENT 'Departamento',
   `position` varchar(100) DEFAULT NULL COMMENT 'Cargo',
