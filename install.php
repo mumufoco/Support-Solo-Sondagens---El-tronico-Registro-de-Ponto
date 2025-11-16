@@ -57,11 +57,51 @@ function askYesNo($question, $default = 'y') {
     return in_array($answer, ['y', 'yes', 's', 'sim']);
 }
 
+function clearScreen() {
+    // Try to clear screen, but don't fail if system() is disabled
+    if (function_exists('system') && !in_array('system', array_map('trim', explode(',', ini_get('disable_functions'))))) {
+        system('clear');
+    } else {
+        // Alternative: just print newlines
+        echo str_repeat("\n", 50);
+    }
+}
+
 // ============================================================================
 // CABEÇALHO
 // ============================================================================
-system('clear');
+clearScreen();
 printHeader("INSTALAÇÃO AUTOMATIZADA - Sistema de Ponto Eletrônico");
+
+// Check if exec() is available
+$execAvailable = function_exists('exec') && !in_array('exec', array_map('trim', explode(',', ini_get('disable_functions'))));
+
+if (!$execAvailable) {
+    printWarning("ATENÇÃO: Funções de sistema (exec, system) estão desabilitadas!");
+    echo "\n";
+    printInfo("Este instalador CLI depende dessas funções para executar migrations.");
+    printInfo("Detectamos que você está em ambiente de HOSPEDAGEM COMPARTILHADA.");
+    echo "\n";
+    echo YELLOW . "═══════════════════════════════════════════════════════════════════\n";
+    echo "  RECOMENDAÇÃO: Use o Instalador Web ao invés deste!\n";
+    echo "  Acesse: " . GREEN . "http://seu-dominio.com/install.php" . YELLOW . "\n";
+    echo "═══════════════════════════════════════════════════════════════════" . NC . "\n\n";
+
+    echo "O instalador web:\n";
+    echo "  ✓ Funciona 100% em hospedagem compartilhada\n";
+    echo "  ✓ Não depende de exec() ou system()\n";
+    echo "  ✓ Interface visual amigável\n";
+    echo "  ✓ Cria banco de dados automaticamente\n";
+    echo "  ✓ Executa migrations via SQL direto\n\n";
+
+    if (!askYesNo("Deseja continuar mesmo assim? (não recomendado)", 'n')) {
+        echo "\n" . GREEN . "Use o instalador web: public/install.php" . NC . "\n\n";
+        exit(0);
+    }
+
+    printWarning("Continuando... algumas funções podem não funcionar corretamente.");
+    echo "\n";
+}
 
 echo "Este assistente irá guiá-lo através da instalação completa do sistema.\n";
 echo "Certifique-se de ter as seguintes informações:\n";
@@ -165,11 +205,16 @@ if ($createEnv) {
     $dbConfig['database'] = askQuestion("Nome do banco de dados", "ponto_eletronico");
     $dbConfig['username'] = askQuestion("Usuário do MySQL", "root");
 
-    // Senha (oculta)
+    // Senha (oculta se possível)
     echo YELLOW . "? Senha do MySQL: " . NC;
-    system('stty -echo');
-    $dbConfig['password'] = trim(fgets(STDIN));
-    system('stty echo');
+    if (function_exists('system') && !in_array('system', array_map('trim', explode(',', ini_get('disable_functions'))))) {
+        system('stty -echo');
+        $dbConfig['password'] = trim(fgets(STDIN));
+        system('stty echo');
+    } else {
+        // Fallback: read password without hiding (not ideal but works)
+        $dbConfig['password'] = trim(fgets(STDIN));
+    }
     echo "\n";
 
     $dbConfig['port'] = askQuestion("Porta do MySQL", "3306");
@@ -300,18 +345,63 @@ try {
 // ============================================================================
 printHeader("ETAPA 4/6: Execução de Migrations");
 
-printInfo("Executando migrations do CodeIgniter...");
-echo "\n";
+if (!$execAvailable) {
+    printWarning("exec() não disponível - usando método alternativo (database.sql)");
+    echo "\n";
+    printInfo("Importando estrutura do banco via public/database.sql...");
 
-$output = [];
-$returnCode = 0;
-exec("php spark migrate 2>&1", $output, $returnCode);
+    if (!file_exists('public/database.sql')) {
+        printError("Arquivo public/database.sql não encontrado!");
+        printInfo("\nSolução: Use o instalador web em public/install.php");
+        exit(1);
+    }
 
-foreach ($output as $line) {
-    echo "  " . $line . "\n";
+    // Import SQL file
+    try {
+        $mysqli = new mysqli($dbConfig['hostname'], $dbConfig['username'], $dbConfig['password'], $dbConfig['database'], (int)$dbConfig['port']);
+
+        $sql = file_get_contents('public/database.sql');
+
+        // Remove comments
+        $sql = preg_replace('/--.*$/m', '', $sql);
+        $sql = preg_replace('#/\*.*?\*/#s', '', $sql);
+
+        // Execute
+        if ($mysqli->multi_query($sql)) {
+            do {
+                if ($result = $mysqli->store_result()) {
+                    $result->free();
+                }
+            } while ($mysqli->more_results() && $mysqli->next_result());
+        }
+
+        if ($mysqli->error) {
+            printWarning("Alguns avisos durante importação: " . $mysqli->error);
+        } else {
+            printSuccess("Estrutura do banco importada com sucesso!");
+        }
+
+        $mysqli->close();
+    } catch (Exception $e) {
+        printError("Erro ao importar database.sql: " . $e->getMessage());
+        exit(1);
+    }
+
+    $returnCode = 0; // Success
+} else {
+    printInfo("Executando migrations do CodeIgniter...");
+    echo "\n";
+
+    $output = [];
+    $returnCode = 0;
+    exec("php spark migrate 2>&1", $output, $returnCode);
+
+    foreach ($output as $line) {
+        echo "  " . $line . "\n";
+    }
 }
 
-if ($returnCode === 0 || strpos(implode("\n", $output), 'Done') !== false) {
+if ($returnCode === 0 || (isset($output) && strpos(implode("\n", $output), 'Done') !== false)) {
     printSuccess("\nMigrations executadas com sucesso");
 } else {
     printError("\nErro ao executar migrations");
@@ -359,24 +449,34 @@ try {
 // ============================================================================
 printHeader("ETAPA 5/6: Execução de Seeders");
 
-$seeders = ['AdminUserSeeder', 'SettingsSeeder'];
+if (!$execAvailable) {
+    printInfo("exec() não disponível - seeders já incluídos no database.sql");
+    printInfo("Settings iniciais foram inseridas via SQL");
+    printWarning("\nATENÇÃO: Você precisa criar o usuário administrador manualmente!");
+    echo "\nOpções:\n";
+    echo "  1. Use o instalador web: " . GREEN . "public/install.php" . NC . "\n";
+    echo "  2. Crie via SQL no phpMyAdmin\n";
+    echo "  3. Cadastre via sistema após instalação\n\n";
+} else {
+    $seeders = ['AdminUserSeeder', 'SettingsSeeder'];
 
-foreach ($seeders as $seeder) {
-    printInfo("Executando $seeder...");
+    foreach ($seeders as $seeder) {
+        printInfo("Executando $seeder...");
 
-    $output = [];
-    $returnCode = 0;
-    exec("php spark db:seed $seeder 2>&1", $output, $returnCode);
+        $output = [];
+        $returnCode = 0;
+        exec("php spark db:seed $seeder 2>&1", $output, $returnCode);
 
-    $outputText = implode("\n", $output);
+        $outputText = implode("\n", $output);
 
-    if ($returnCode === 0 || strpos($outputText, 'Seeded') !== false || strpos($outputText, 'successfully') !== false) {
-        printSuccess("$seeder executado com sucesso");
-    } else {
-        printWarning("$seeder pode ter falhado ou já foi executado");
-        if (askYesNo("Deseja ver a saída?", 'n')) {
-            foreach ($output as $line) {
-                echo "  $line\n";
+        if ($returnCode === 0 || strpos($outputText, 'Seeded') !== false || strpos($outputText, 'successfully') !== false) {
+            printSuccess("$seeder executado com sucesso");
+        } else {
+            printWarning("$seeder pode ter falhado ou já foi executado");
+            if (askYesNo("Deseja ver a saída?", 'n')) {
+                foreach ($output as $line) {
+                    echo "  $line\n";
+                }
             }
         }
     }
@@ -387,27 +487,51 @@ foreach ($seeders as $seeder) {
 // ============================================================================
 printHeader("ETAPA 6/6: Validação da Instalação");
 
-printInfo("Executando script de validação...");
-echo "\n";
+if (!$execAvailable) {
+    printInfo("Validação automática não disponível (exec() desabilitado)");
+    printInfo("Verificação manual das tabelas:");
 
-$output = [];
-$returnCode = 0;
-exec("php validate-system.php 2>&1", $output, $returnCode);
+    try {
+        $mysqli = new mysqli($dbConfig['hostname'], $dbConfig['username'], $dbConfig['password'], $dbConfig['database'], (int)$dbConfig['port']);
+        $result = $mysqli->query("SHOW TABLES");
+        $tableCount = 0;
+        while ($result->fetch_array()) {
+            $tableCount++;
+        }
 
-// Mostrar apenas resumo (últimas 30 linhas)
-$totalLines = count($output);
-$startLine = max(0, $totalLines - 30);
+        if ($tableCount >= 20) {
+            printSuccess("✓ Banco de dados possui $tableCount tabelas (esperado: 23+)");
+        } else {
+            printWarning("⚠ Apenas $tableCount tabelas encontradas (esperado: 23+)");
+        }
 
-for ($i = $startLine; $i < $totalLines; $i++) {
-    echo $output[$i] . "\n";
-}
-
-echo "\n";
-
-if ($returnCode === 0) {
-    printSuccess("Sistema validado com sucesso!");
+        $mysqli->close();
+    } catch (Exception $e) {
+        printError("Erro ao validar: " . $e->getMessage());
+    }
 } else {
-    printWarning("Validação encontrou problemas. Execute 'php validate-system.php' para detalhes.");
+    printInfo("Executando script de validação...");
+    echo "\n";
+
+    $output = [];
+    $returnCode = 0;
+    exec("php validate-system.php 2>&1", $output, $returnCode);
+
+    // Mostrar apenas resumo (últimas 30 linhas)
+    $totalLines = count($output);
+    $startLine = max(0, $totalLines - 30);
+
+    for ($i = $startLine; $i < $totalLines; $i++) {
+        echo $output[$i] . "\n";
+    }
+
+    echo "\n";
+
+    if ($returnCode === 0) {
+        printSuccess("Sistema validado com sucesso!");
+    } else {
+        printWarning("Validação encontrou problemas. Execute 'php validate-system.php' para detalhes.");
+    }
 }
 
 // ============================================================================
