@@ -283,7 +283,8 @@ class RateLimitService
      */
     protected function getCacheKey(string $key, string $limitType): string
     {
-        return 'rate_limit:' . $limitType . ':' . md5($key);
+        // Use underscores instead of colons - CodeIgniter cache doesn't allow : in keys
+        return 'rate_limit_' . $limitType . '_' . md5($key);
     }
 
     /**

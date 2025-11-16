@@ -96,7 +96,8 @@ class RateLimitFilter implements FilterInterface
         // Generate unique key for this request
         // Combine path and IP for granular rate limiting
         $ip = $this->rateLimitService->getClientIp();
-        $key = $path . ':' . $ip;
+        // Use underscore instead of colon to avoid cache key validation errors
+        $key = str_replace('/', '_', $path) . '_' . str_replace('.', '_', $ip);
 
         // Attempt to perform action (check and increment)
         $limitInfo = $this->rateLimitService->attempt($key, $limitType, $ip);
