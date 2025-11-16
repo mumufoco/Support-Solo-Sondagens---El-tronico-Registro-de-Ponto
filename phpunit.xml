@@ -26,6 +26,9 @@
         <testsuite name="E2E">
             <directory>./tests/e2e</directory>
         </testsuite>
+        <testsuite name="Performance">
+            <directory>./tests/performance</directory>
+        </testsuite>
     </testsuites>
 
     <coverage processUncoveredFiles="true">
