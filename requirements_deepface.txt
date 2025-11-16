@@ -1,0 +1,21 @@
+# DeepFace POC Requirements
+# Sistema de Ponto Eletrônico
+
+# DeepFace e dependências
+deepface==0.0.89
+opencv-python==4.8.1.78
+Pillow==10.1.0
+numpy==1.24.3
+
+# TensorFlow (backend do DeepFace)
+tensorflow==2.15.0
+
+# Utilitários
+tqdm==4.66.1
+gdown==4.7.1
+
+# Flask para API (Fase 2)
+# flask==3.0.0
+# flask-cors==4.0.0
+# flask-limiter==3.5.0
+# gunicorn==21.2.0

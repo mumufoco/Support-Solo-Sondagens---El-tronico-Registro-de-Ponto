@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POC - Registro de Ponto Eletrônico</title>
+
+    <!-- Bootstrap 5 CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .container-main {
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .btn-punch {
+            width: 250px;
+            height: 250px;
+            border-radius: 50%;
+            font-size: 24px;
+            font-weight: bold;
+            text-transform: uppercase;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+            border: 5px solid rgba(255,255,255,0.3);
+        }
+
+        .btn-punch:hover {
+            transform: scale(1.05);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+        }
+
+        .btn-punch:active {
+            transform: scale(0.95);
+        }
+
+        .current-time {
+            font-size: 3.5rem;
+            font-weight: 700;
+            color: #667eea;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .current-date {
+            font-size: 1.2rem;
+            color: #6c757d;
+        }
+
+        .method-selector {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+
+        .method-btn {
+            margin: 5px;
+        }
+
+        .punch-history {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .punch-item {
+            border-left: 4px solid;
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            background: #f8f9fa;
+        }
+
+        .punch-item.entrada {
+            border-left-color: #28a745;
+        }
+
+        .punch-item.saida {
+            border-left-color: #dc3545;
+        }
+
+        .punch-item.intervalo-inicio {
+            border-left-color: #ffc107;
+        }
+
+        .punch-item.intervalo-fim {
+            border-left-color: #17a2b8;
+        }
+
+        #videoPreview {
+            width: 100%;
+            max-width: 640px;
+            height: 480px;
+            background: #000;
+            border-radius: 10px;
+            margin: 20px auto;
+            display: block;
+        }
+
+        .feedback {
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-align: center;
+            display: none;
+        }
+
+        .feedback.success {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #c3e6cb;
+        }
+
+        .feedback.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 2px solid #f5c6cb;
+        }
+
+        .badge-status {
+            font-size: 0.9rem;
+            padding: 5px 15px;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-main">
+        <!-- Header -->
+        <div class="text-center text-white mb-4">
+            <h1 class="fw-bold mb-2">
+                <i class="fas fa-clock"></i> Sistema de Ponto Eletrônico
+            </h1>
+            <p class="mb-0">Protótipo - Proof of Concept</p>
+        </div>
+
+        <!-- Main Card -->
+        <div class="card">
+            <div class="card-body p-4">
+                <!-- Current Time -->
+                <div class="text-center mb-4">
+                    <div class="current-time" id="currentTime">00:00:00</div>
+                    <div class="current-date" id="currentDate">Carregando...</div>
+                    <div class="mt-2">
+                        <span class="badge bg-success badge-status" id="statusBadge">
+                            <i class="fas fa-circle pulse"></i> Online
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Method Selector -->
+                <div class="method-selector">
+                    <h6 class="text-center mb-3">
+                        <i class="fas fa-list"></i> Método de Registro
+                    </h6>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="method" id="methodCode" value="code" checked>
+                        <label class="btn btn-outline-primary method-btn" for="methodCode">
+                            <i class="fas fa-keyboard"></i> Código
+                        </label>
+
+                        <input type="radio" class="btn-check" name="method" id="methodQR" value="qr">
+                        <label class="btn btn-outline-primary method-btn" for="methodQR">
+                            <i class="fas fa-qrcode"></i> QR Code
+                        </label>
+
+                        <input type="radio" class="btn-check" name="method" id="methodFacial" value="facial">
+                        <label class="btn btn-outline-primary method-btn" for="methodFacial">
+                            <i class="fas fa-user-circle"></i> Facial
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Method Content Areas -->
+                <div class="mt-4">
+                    <!-- Code Method -->
+                    <div id="codeArea" class="method-area">
+                        <div class="text-center">
+                            <input type="text"
+                                   class="form-control form-control-lg text-center mb-3"
+                                   id="employeeCode"
+                                   placeholder="Digite seu código (8 dígitos)"
+                                   maxlength="8"
+                                   style="max-width: 400px; margin: 0 auto; font-size: 1.5rem; letter-spacing: 0.5rem;">
+                            <small class="text-muted">Ex: 1234-5678</small>
+                        </div>
+                    </div>
+
+                    <!-- QR Code Method -->
+                    <div id="qrArea" class="method-area" style="display:none;">
+                        <div class="text-center">
+                            <p><i class="fas fa-qrcode fa-3x text-secondary mb-3"></i></p>
+                            <p>Posicione seu QR Code na frente da câmera</p>
+                            <video id="videoPreview" style="display:none;"></video>
+                            <canvas id="qrCanvas" style="display:none;"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Facial Method -->
+                    <div id="facialArea" class="method-area" style="display:none;">
+                        <div class="text-center">
+                            <p><i class="fas fa-camera fa-3x text-secondary mb-3"></i></p>
+                            <p>Posicione seu rosto no centro da câmera</p>
+                            <video id="videoPreviewFacial" autoplay style="display:none;"></video>
+                            <canvas id="faceCanvas" style="display:none;"></canvas>
+                            <div class="mt-3">
+                                <button class="btn btn-primary btn-lg" id="captureBtn" style="display:none;">
+                                    <i class="fas fa-camera"></i> Capturar Foto
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Punch Button -->
+                <div class="text-center my-4">
+                    <button class="btn btn-success btn-punch" id="punchBtn">
+                        <i class="fas fa-hand-pointer fa-2x mb-2"></i>
+                        <br>
+                        Bater Ponto
+                    </button>
+                </div>
+
+                <!-- Feedback Area -->
+                <div id="feedbackArea" class="feedback"></div>
+
+                <!-- Punch History -->
+                <div class="mt-4">
+                    <h5 class="mb-3">
+                        <i class="fas fa-history"></i> Últimas Marcações
+                    </h5>
+                    <div class="punch-history" id="punchHistory">
+                        <p class="text-center text-muted py-3">
+                            Nenhuma marcação registrada
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center text-white mt-4">
+            <small>
+                POC - Fase 0 | Sistema de Ponto Eletrônico<br>
+                Funciona offline | Dados salvos em localStorage
+            </small>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Main Script -->
+    <script>
+        // ===== ESTADO GLOBAL =====
+        let currentMethod = 'code';
+        let videoStream = null;
+        let offlineMode = !navigator.onLine;
+
+        // ===== CLOCK UPDATE =====
+        function updateClock() {
+            const now = new Date();
+
+            // Time
+            const time = now.toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            document.getElementById('currentTime').textContent = time;
+
+            // Date
+            const dateOptions = {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            };
+            const date = now.toLocaleDateString('pt-BR', dateOptions);
+            document.getElementById('currentDate').textContent =
+                date.charAt(0).toUpperCase() + date.slice(1);
+        }
+
+        // Update clock every second
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ===== ONLINE/OFFLINE STATUS =====
+        function updateOnlineStatus() {
+            const badge = document.getElementById('statusBadge');
+            if (navigator.onLine) {
+                badge.className = 'badge bg-success badge-status';
+                badge.innerHTML = '<i class="fas fa-circle pulse"></i> Online';
+                offlineMode = false;
+            } else {
+                badge.className = 'badge bg-warning badge-status';
+                badge.innerHTML = '<i class="fas fa-circle"></i> Offline';
+                offlineMode = true;
+            }
+        }
+
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        updateOnlineStatus();
+
+        // ===== METHOD SWITCHING =====
+        document.querySelectorAll('input[name="method"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                currentMethod = this.value;
+                document.querySelectorAll('.method-area').forEach(area => {
+                    area.style.display = 'none';
+                });
+                document.getElementById(currentMethod + 'Area').style.display = 'block';
+
+                // Stop any active video streams
+                if (videoStream) {
+                    videoStream.getTracks().forEach(track => track.stop());
+                    videoStream = null;
+                }
+
+                // Activate camera for QR or Facial
+                if (currentMethod === 'qr' || currentMethod === 'facial') {
+                    activateCamera(currentMethod);
+                }
+            });
+        });
+
+        // ===== CAMERA ACTIVATION =====
+        async function activateCamera(mode) {
+            try {
+                const video = mode === 'facial' ?
+                    document.getElementById('videoPreviewFacial') :
+                    document.getElementById('videoPreview');
+
+                videoStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: mode === 'facial' ? 'user' : 'environment'
+                    }
+                });
+
+                video.srcObject = videoStream;
+                video.style.display = 'block';
+
+                if (mode === 'facial') {
+                    document.getElementById('captureBtn').style.display = 'block';
+                }
+            } catch (error) {
+                showFeedback('Erro ao acessar câmera: ' + error.message, 'error');
+            }
+        }
+
+        // ===== CAPTURE PHOTO =====
+        document.getElementById('captureBtn')?.addEventListener('click', function() {
+            const video = document.getElementById('videoPreviewFacial');
+            const canvas = document.getElementById('faceCanvas');
+            const context = canvas.getContext('2d');
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0);
+
+            const imageData = canvas.toDataURL('image/jpeg');
+            console.log('Photo captured:', imageData.substring(0, 50) + '...');
+
+            showFeedback('Foto capturada! Processando reconhecimento...', 'success');
+
+            // Simulate recognition (2 seconds)
+            setTimeout(() => {
+                // In real implementation, send to DeepFace API
+                const mockEmployee = {
+                    id: Math.floor(Math.random() * 1000),
+                    name: 'João Silva',
+                    similarity: (0.85 + Math.random() * 0.14).toFixed(2)
+                };
+
+                if (parseFloat(mockEmployee.similarity) >= 0.40) {
+                    registerPunch('facial', mockEmployee);
+                } else {
+                    showFeedback('Rosto não reconhecido. Tente novamente.', 'error');
+                }
+            }, 2000);
+        });
+
+        // ===== REGISTER PUNCH =====
+        document.getElementById('punchBtn').addEventListener('click', function() {
+            const code = document.getElementById('employeeCode').value;
+
+            if (currentMethod === 'code') {
+                if (!code || code.length < 8) {
+                    showFeedback('Digite um código válido de 8 dígitos', 'error');
+                    return;
+                }
+
+                // Simulate validation
+                const mockEmployee = {
+                    id: code,
+                    name: 'Funcionário ' + code.substring(0, 4)
+                };
+
+                registerPunch('code', mockEmployee);
+
+            } else if (currentMethod === 'qr') {
+                showFeedback('Leitura de QR Code não implementada no protótipo', 'error');
+
+            } else if (currentMethod === 'facial') {
+                showFeedback('Clique em "Capturar Foto" primeiro', 'error');
+            }
+        });
+
+        function registerPunch(method, employee) {
+            const now = new Date();
+            const punches = loadPunches();
+
+            // Determine punch type
+            const lastPunch = punches[0];
+            let punchType = 'entrada';
+
+            if (lastPunch) {
+                const lastDate = new Date(lastPunch.timestamp);
+                const sameDay = lastDate.toDateString() === now.toDateString();
+
+                if (sameDay) {
+                    if (lastPunch.type === 'entrada') punchType = 'intervalo-inicio';
+                    else if (lastPunch.type === 'intervalo-inicio') punchType = 'intervalo-fim';
+                    else if (lastPunch.type === 'intervalo-fim') punchType = 'saida';
+                    else punchType = 'entrada'; // Next day
+                } else {
+                    punchType = 'entrada';
+                }
+            }
+
+            // Create punch record
+            const punch = {
+                id: Date.now(),
+                employee: employee.name,
+                employee_id: employee.id,
+                method: method,
+                type: punchType,
+                timestamp: now.toISOString(),
+                similarity: employee.similarity || null,
+                synced: !offlineMode
+            };
+
+            // Save to localStorage
+            punches.unshift(punch);
+            localStorage.setItem('punches', JSON.stringify(punches));
+
+            // Show feedback
+            const typeLabels = {
+                'entrada': 'ENTRADA',
+                'saida': 'SAÍDA',
+                'intervalo-inicio': 'INÍCIO INTERVALO',
+                'intervalo-fim': 'FIM INTERVALO'
+            };
+
+            showFeedback(
+                `✓ ${typeLabels[punchType]} registrada com sucesso!<br>` +
+                `<small>${employee.name} • ${now.toLocaleTimeString('pt-BR')}</small>`,
+                'success'
+            );
+
+            // Update history
+            updatePunchHistory();
+
+            // Clear code input
+            if (method === 'code') {
+                document.getElementById('employeeCode').value = '';
+            }
+        }
+
+        // ===== LOAD/SAVE PUNCHES =====
+        function loadPunches() {
+            const data = localStorage.getItem('punches');
+            return data ? JSON.parse(data) : [];
+        }
+
+        function updatePunchHistory() {
+            const punches = loadPunches();
+            const container = document.getElementById('punchHistory');
+
+            if (punches.length === 0) {
+                container.innerHTML = '<p class="text-center text-muted py-3">Nenhuma marcação registrada</p>';
+                return;
+            }
+
+            const html = punches.slice(0, 5).map(punch => {
+                const date = new Date(punch.timestamp);
+                const typeLabels = {
+                    'entrada': 'Entrada',
+                    'saida': 'Saída',
+                    'intervalo-inicio': 'Início Intervalo',
+                    'intervalo-fim': 'Fim Intervalo'
+                };
+
+                const methodIcons = {
+                    'code': 'fa-keyboard',
+                    'qr': 'fa-qrcode',
+                    'facial': 'fa-user-circle'
+                };
+
+                return `
+                    <div class="punch-item ${punch.type}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${typeLabels[punch.type]}</strong>
+                                <div class="small text-muted">
+                                    <i class="fas ${methodIcons[punch.method]}"></i>
+                                    ${punch.employee}
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <div>${date.toLocaleTimeString('pt-BR')}</div>
+                                <div class="small text-muted">
+                                    ${date.toLocaleDateString('pt-BR')}
+                                    ${!punch.synced ? '<i class="fas fa-sync text-warning" title="Pendente sincronização"></i>' : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = html;
+        }
+
+        // ===== FEEDBACK =====
+        function showFeedback(message, type) {
+            const feedback = document.getElementById('feedbackArea');
+            feedback.className = 'feedback ' + type;
+            feedback.innerHTML = message;
+            feedback.style.display = 'block';
+
+            setTimeout(() => {
+                feedback.style.display = 'none';
+            }, 5000);
+        }
+
+        // ===== INIT =====
+        updatePunchHistory();
+
+        // Format code input
+        document.getElementById('employeeCode').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length > 4) {
+                value = value.substring(0, 4) + '-' + value.substring(4, 8);
+            }
+            e.target.value = value;
+        });
+
+        console.log('%cPOC - Registro de Ponto Eletrônico', 'color: #667eea; font-size: 20px; font-weight: bold;');
+        console.log('Funcionalidades offline ativadas');
+        console.log('Dados salvos em localStorage');
+    </script>
+</body>
+</html>
