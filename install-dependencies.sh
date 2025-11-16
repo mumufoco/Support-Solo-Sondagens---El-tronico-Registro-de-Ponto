@@ -72,14 +72,21 @@ check_composer() {
         HASH="$(wget -q -O - https://composer.github.io/installer.sig)"
         php -r "if (hash_file('sha384', 'composer-setup.php') === '$HASH') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); exit(1); } echo PHP_EOL;"
 
-        # Run installer
-        php composer-setup.php --quiet
+        # Run installer with explicit CLI configuration to ensure $argv is available
+        # This prevents "Undefined variable $argv" warnings
+        php -d register_argc_argv=On composer-setup.php --quiet
+
+        # Clean up installer
         rm composer-setup.php
 
         # Move to global location
-        sudo mv composer.phar /usr/local/bin/composer
-
-        print_success "Composer instalado com sucesso!"
+        if [ -f "composer.phar" ]; then
+            sudo mv composer.phar /usr/local/bin/composer
+            print_success "Composer instalado com sucesso!"
+        else
+            print_error "Falha ao instalar Composer. Tente instalar manualmente."
+            exit 1
+        fi
     else
         print_success "Composer encontrado: $(composer --version)"
     fi
