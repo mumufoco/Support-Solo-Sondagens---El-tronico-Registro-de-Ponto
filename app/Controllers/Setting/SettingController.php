@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Controllers;
+namespace App\Controllers\Setting;
 
+use App\Controllers\BaseController;
 use App\Models\SettingModel;
 use App\Models\GeofenceModel;
 use CodeIgniter\HTTP\ResponseInterface;
