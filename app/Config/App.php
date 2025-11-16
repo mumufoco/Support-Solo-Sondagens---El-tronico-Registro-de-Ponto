@@ -70,7 +70,7 @@ class App extends BaseConfig
     /**
      * Cookie Settings
      */
-    public array $cookiePrefix   = '';
+    public string $cookiePrefix   = '';
     public string $cookieDomain  = '';
     public string $cookiePath    = '/';
     public bool   $cookieSecure  = false;

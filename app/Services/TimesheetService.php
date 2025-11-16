@@ -554,4 +554,141 @@ class TimesheetService
             'total_punches' => $this->timePunchModel->countAllResults(),
         ];
     }
+
+    /**
+     * Count late arrivals for employee in period
+     *
+     * A late arrival is when the first punch of the day (entrada) is after
+     * the employee's scheduled start time + tolerance minutes
+     *
+     * @param int $employeeId
+     * @param string $startDate
+     * @param string $endDate
+     * @return int Number of late arrivals
+     */
+    public function countLateArrivals(int $employeeId, string $startDate, string $endDate): int
+    {
+        // Get employee's scheduled start time and tolerance
+        $employee = $this->employeeModel->find($employeeId);
+
+        if (!$employee || !$employee->work_schedule_start) {
+            return 0; // No schedule defined, cannot determine lateness
+        }
+
+        // Get tolerance from settings (default 10 minutes)
+        $toleranceMinutes = $this->settingModel
+            ->where('key', 'tolerance_minutes_late')
+            ->first()
+            ?->value ?? 10;
+
+        // Get all entrance punches for the period
+        $punches = $this->timePunchModel
+            ->where('employee_id', $employeeId)
+            ->where('punch_type', 'entrada')
+            ->where('DATE(punch_time) >=', $startDate)
+            ->where('DATE(punch_time) <=', $endDate)
+            ->orderBy('punch_time', 'ASC')
+            ->findAll();
+
+        $lateCount = 0;
+
+        foreach ($punches as $punch) {
+            $punchDate = date('Y-m-d', strtotime($punch->punch_time));
+            $punchTime = date('H:i:s', strtotime($punch->punch_time));
+
+            // Calculate tolerance limit
+            $scheduledStart = new \DateTime($punchDate . ' ' . $employee->work_schedule_start);
+            $scheduledStart->modify("+{$toleranceMinutes} minutes");
+            $toleranceLimit = $scheduledStart->format('H:i:s');
+
+            // Check if punch is after tolerance limit
+            if ($punchTime > $toleranceLimit) {
+                $lateCount++;
+            }
+        }
+
+        return $lateCount;
+    }
+
+    /**
+     * Count absences for employee in period
+     *
+     * An absence is a work day where the employee has:
+     * - No punches at all, OR
+     * - An approved justification of type 'absence' or 'medical_leave'
+     *
+     * @param int $employeeId
+     * @param string $startDate
+     * @param string $endDate
+     * @return int Number of absences
+     */
+    public function countAbsences(int $employeeId, string $startDate, string $endDate): int
+    {
+        // Count approved justifications for absences
+        $justifications = $this->justificationModel
+            ->where('employee_id', $employeeId)
+            ->where('justification_date >=', $startDate)
+            ->where('justification_date <=', $endDate)
+            ->where('status', 'approved')
+            ->whereIn('type', ['absence', 'medical_leave', 'vacation'])
+            ->countAllResults();
+
+        // Also count days with no punches at all (excluding weekends)
+        $employee = $this->employeeModel->find($employeeId);
+
+        if (!$employee) {
+            return $justifications;
+        }
+
+        // Get all dates in range with punches
+        $punchDates = $this->timePunchModel
+            ->select('DISTINCT DATE(punch_time) as punch_date')
+            ->where('employee_id', $employeeId)
+            ->where('DATE(punch_time) >=', $startDate)
+            ->where('DATE(punch_time) <=', $endDate)
+            ->findAll();
+
+        $punchDatesList = array_map(function ($p) {
+            return $p->punch_date;
+        }, $punchDates);
+
+        // Count workdays without punches and without justified absences
+        $justifiedDates = $this->justificationModel
+            ->select('justification_date')
+            ->where('employee_id', $employeeId)
+            ->where('justification_date >=', $startDate)
+            ->where('justification_date <=', $endDate)
+            ->where('status', 'approved')
+            ->findAll();
+
+        $justifiedDatesList = array_map(function ($j) {
+            return $j->justification_date;
+        }, $justifiedDates);
+
+        // Generate list of all workdays in range
+        $currentDate = new \DateTime($startDate);
+        $endDateTime = new \DateTime($endDate);
+        $unjustifiedAbsences = 0;
+
+        while ($currentDate <= $endDateTime) {
+            $dateStr = $currentDate->format('Y-m-d');
+            $dayOfWeek = $currentDate->format('N'); // 1 (Monday) to 7 (Sunday)
+
+            // Skip weekends (Saturday=6, Sunday=7)
+            if ($dayOfWeek >= 6) {
+                $currentDate->modify('+1 day');
+                continue;
+            }
+
+            // Check if this is a workday with no punch and no justification
+            if (!in_array($dateStr, $punchDatesList) && !in_array($dateStr, $justifiedDatesList)) {
+                $unjustifiedAbsences++;
+            }
+
+            $currentDate->modify('+1 day');
+        }
+
+        // Total absences = justified + unjustified
+        return $justifications + $unjustifiedAbsences;
+    }
 }

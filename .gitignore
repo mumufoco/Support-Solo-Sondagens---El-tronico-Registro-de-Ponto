@@ -79,12 +79,15 @@ tests/coverage*
 
 # Don't save phpunit under version control.
 phpunit
+.phpunit.result.cache
 
 #-------------------------
 # Composer
 #-------------------------
 vendor/
 composer.lock
+composer.phar
+.composer/
 
 #-------------------------
 # IDE Files
@@ -149,6 +152,9 @@ storage/receipts/*
 storage/backups/*
 !storage/backups/.gitkeep
 
+storage/logs/*
+!storage/logs/.gitkeep
+
 #-------------------------
 # DeepFace API (Python)
 #-------------------------
@@ -186,6 +192,9 @@ public/mix-manifest.json
 *.sql.gz
 *.backup
 *.bak
+
+# Exception: Allow distribution database schema
+!public/database.sql
 
 #-------------------------
 # Documentation Build

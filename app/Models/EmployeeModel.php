@@ -19,6 +19,7 @@ class EmployeeModel extends Model
         'cpf',
         'unique_code',
         'role',
+        'manager_id',
         'department',
         'position',
         'expected_hours_daily',
@@ -27,6 +28,10 @@ class EmployeeModel extends Model
         'active',
         'extra_hours_balance',
         'owed_hours_balance',
+        'two_factor_enabled',
+        'two_factor_secret',
+        'two_factor_backup_codes',
+        'two_factor_verified_at',
     ];
 
     // Dates
@@ -322,5 +327,284 @@ class EmployeeModel extends Model
         }
 
         return null;
+    }
+
+    // ==================== Manager Hierarchy Methods ====================
+
+    /**
+     * Get all direct subordinates of a manager
+     *
+     * @param int $managerId Manager's employee ID
+     * @param bool $activeOnly Only active employees (default: true)
+     * @return array List of subordinate employees
+     */
+    public function getDirectSubordinates(int $managerId, bool $activeOnly = true): array
+    {
+        $builder = $this->where('manager_id', $managerId);
+
+        if ($activeOnly) {
+            $builder->where('active', true);
+        }
+
+        return $builder->orderBy('name', 'ASC')->findAll();
+    }
+
+    /**
+     * Get all subordinates recursively (entire hierarchy below manager)
+     *
+     * Uses recursive CTE (Common Table Expression) for efficient hierarchical query
+     *
+     * @param int $managerId Manager's employee ID
+     * @param bool $activeOnly Only active employees (default: true)
+     * @return array List of all subordinates (direct + indirect)
+     */
+    public function getAllSubordinates(int $managerId, bool $activeOnly = true): array
+    {
+        $activeCondition = $activeOnly ? 'AND e.active = 1' : '';
+
+        // Recursive CTE to get entire hierarchy
+        $sql = "
+            WITH RECURSIVE subordinates AS (
+                -- Base case: direct reports
+                SELECT
+                    id, name, email, role, department, position, manager_id, active, 1 as level
+                FROM employees
+                WHERE manager_id = ? {$activeCondition}
+
+                UNION ALL
+
+                -- Recursive case: reports of reports
+                SELECT
+                    e.id, e.name, e.email, e.role, e.department, e.position, e.manager_id, e.active, s.level + 1
+                FROM employees e
+                INNER JOIN subordinates s ON e.manager_id = s.id
+                WHERE 1=1 {$activeCondition}
+            )
+            SELECT * FROM subordinates
+            ORDER BY level, name
+        ";
+
+        $query = $this->db->query($sql, [$managerId]);
+
+        return $query->getResultArray();
+    }
+
+    /**
+     * Get IDs of all subordinates (useful for WHERE IN queries)
+     *
+     * @param int $managerId Manager's employee ID
+     * @param bool $activeOnly Only active employees (default: true)
+     * @return array Array of employee IDs
+     */
+    public function getSubordinateIds(int $managerId, bool $activeOnly = true): array
+    {
+        $subordinates = $this->getAllSubordinates($managerId, $activeOnly);
+
+        return array_column($subordinates, 'id');
+    }
+
+    /**
+     * Check if an employee is subordinate to a manager (directly or indirectly)
+     *
+     * @param int $employeeId Employee to check
+     * @param int $managerId Manager to check against
+     * @return bool True if employee is subordinate
+     */
+    public function isSubordinateTo(int $employeeId, int $managerId): bool
+    {
+        $subordinateIds = $this->getSubordinateIds($managerId, false);
+
+        return in_array($employeeId, $subordinateIds);
+    }
+
+    /**
+     * Get manager chain for an employee (up to top of hierarchy)
+     *
+     * @param int $employeeId Employee ID
+     * @return array Array of managers from direct to top-level
+     */
+    public function getManagerChain(int $employeeId): array
+    {
+        $sql = "
+            WITH RECURSIVE managers AS (
+                -- Base case: employee's direct manager
+                SELECT
+                    e2.id, e2.name, e2.email, e2.role, e2.department, e2.manager_id, 1 as level
+                FROM employees e1
+                LEFT JOIN employees e2 ON e1.manager_id = e2.id
+                WHERE e1.id = ? AND e2.id IS NOT NULL
+
+                UNION ALL
+
+                -- Recursive case: manager's manager
+                SELECT
+                    e.id, e.name, e.email, e.role, e.department, e.manager_id, m.level + 1
+                FROM employees e
+                INNER JOIN managers m ON e.id = m.manager_id
+            )
+            SELECT * FROM managers
+            ORDER BY level
+        ";
+
+        $query = $this->db->query($sql, [$employeeId]);
+
+        return $query->getResultArray();
+    }
+
+    /**
+     * Get team statistics for a manager
+     *
+     * @param int $managerId Manager ID
+     * @return array Statistics about team
+     */
+    public function getTeamStats(int $managerId): array
+    {
+        $subordinateIds = $this->getSubordinateIds($managerId, true);
+
+        if (empty($subordinateIds)) {
+            return [
+                'total_count' => 0,
+                'by_department' => [],
+                'by_role' => [],
+                'active_count' => 0,
+            ];
+        }
+
+        $subordinates = $this->whereIn('id', $subordinateIds)->findAll();
+
+        // Count by department
+        $byDepartment = [];
+        $byRole = [];
+
+        foreach ($subordinates as $employee) {
+            // Count by department
+            $dept = $employee->department ?? 'Sem Departamento';
+            $byDepartment[$dept] = ($byDepartment[$dept] ?? 0) + 1;
+
+            // Count by role
+            $byRole[$employee->role] = ($byRole[$employee->role] ?? 0) + 1;
+        }
+
+        return [
+            'total_count' => count($subordinates),
+            'by_department' => $byDepartment,
+            'by_role' => $byRole,
+            'active_count' => count($subordinates), // All are active due to filter
+        ];
+    }
+
+    // ==================== Eager Loading Methods ====================
+
+    /**
+     * Get employees with their related data (avoid N+1 queries)
+     *
+     * Uses JOIN to load related data in a single query instead of
+     * multiple queries per employee
+     *
+     * @param array|null $employeeIds Optional list of employee IDs to filter
+     * @return array List of employees with relations
+     */
+    public function getWithRelations(?array $employeeIds = null): array
+    {
+        $builder = $this->db->table('employees e')
+            ->select('
+                e.*,
+                m.name as manager_name,
+                m.email as manager_email,
+                COUNT(DISTINCT tp.id) as total_punches,
+                COUNT(DISTINCT j.id) as total_justifications,
+                COUNT(DISTINCT w.id) as total_warnings,
+                COUNT(DISTINCT bt.id) as biometric_templates_count
+            ')
+            ->join('employees m', 'e.manager_id = m.id', 'left')
+            ->join('time_punches tp', 'e.id = tp.employee_id', 'left')
+            ->join('justifications j', 'e.id = j.employee_id', 'left')
+            ->join('warnings w', 'e.id = w.employee_id', 'left')
+            ->join('biometric_templates bt', 'e.id = bt.employee_id AND bt.active = 1', 'left')
+            ->where('e.active', 1)
+            ->groupBy('e.id');
+
+        if ($employeeIds !== null && !empty($employeeIds)) {
+            $builder->whereIn('e.id', $employeeIds);
+        }
+
+        return $builder->get()->getResultArray();
+    }
+
+    /**
+     * Get employees with punch statistics for a date range
+     *
+     * Eager loads punch data to avoid multiple queries
+     *
+     * @param string $startDate Start date (Y-m-d)
+     * @param string $endDate End date (Y-m-d)
+     * @param array|null $employeeIds Optional filter
+     * @return array Employees with punch statistics
+     */
+    public function getWithPunchStats(string $startDate, string $endDate, ?array $employeeIds = null): array
+    {
+        $builder = $this->db->table('employees e')
+            ->select('
+                e.id,
+                e.name,
+                e.department,
+                e.position,
+                e.expected_hours_daily,
+                COUNT(DISTINCT DATE(tp.punch_time)) as days_worked,
+                COUNT(tp.id) as total_punches,
+                MIN(
+                    CASE
+                        WHEN tp.punch_type = "entrada"
+                        THEN tp.punch_time
+                        ELSE NULL
+                    END
+                ) as first_punch,
+                MAX(
+                    CASE
+                        WHEN tp.punch_type = "saida"
+                        THEN tp.punch_time
+                        ELSE NULL
+                    END
+                ) as last_punch
+            ')
+            ->join('time_punches tp', 'e.id = tp.employee_id AND DATE(tp.punch_time) BETWEEN ' . $this->db->escape($startDate) . ' AND ' . $this->db->escape($endDate), 'left')
+            ->where('e.active', 1)
+            ->groupBy('e.id');
+
+        if ($employeeIds !== null && !empty($employeeIds)) {
+            $builder->whereIn('e.id', $employeeIds);
+        }
+
+        return $builder->get()->getResultArray();
+    }
+
+    /**
+     * Get active employees with department info (optimized)
+     *
+     * @param string|null $department Filter by department
+     * @return array
+     */
+    public function getActiveWithDepartment(?string $department = null): array
+    {
+        $builder = $this->select('
+                id,
+                name,
+                email,
+                role,
+                department,
+                position,
+                work_schedule_start,
+                work_schedule_end,
+                expected_hours_daily
+            ')
+            ->where('active', 1)
+            ->orderBy('department', 'ASC')
+            ->orderBy('name', 'ASC');
+
+        if ($department !== null) {
+            $builder->where('department', $department);
+        }
+
+        return $builder->findAll();
     }
 }

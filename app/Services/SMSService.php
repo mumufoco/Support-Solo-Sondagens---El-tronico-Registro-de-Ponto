@@ -201,16 +201,37 @@ class SMSService
                 ];
             }
 
-            // TODO: Implement Twilio API call
-            // $client = new \Twilio\Rest\Client($accountSid, $authToken);
-            // $message = $client->messages->create($phone, [
-            //     'from' => $twilioNumber,
-            //     'body' => "Seu código de verificação é: {$code}\nVálido por 5 minutos."
-            // ]);
+            // Use Guzzle HTTP client to call Twilio API
+            $client = \Config\Services::curlrequest();
+
+            $url = "https://api.twilio.com/2010-04-01/Accounts/{$accountSid}/Messages.json";
+
+            $response = $client->post($url, [
+                'auth' => [$accountSid, $authToken],
+                'form_params' => [
+                    'To' => $phone,
+                    'From' => $twilioNumber,
+                    'Body' => "Seu código de verificação é: {$code}\nVálido por 5 minutos."
+                ]
+            ]);
+
+            $statusCode = $response->getStatusCode();
+            $body = json_decode($response->getBody(), true);
+
+            if ($statusCode !== 201) {
+                log_message('error', 'Twilio SMS failed: ' . ($body['message'] ?? 'Unknown error'));
+                return [
+                    'success' => false,
+                    'error' => 'Falha ao enviar SMS via Twilio: ' . ($body['message'] ?? 'Unknown error')
+                ];
+            }
+
+            log_message('info', "SMS sent via Twilio to {$phone}, SID: {$body['sid']}");
 
             return [
                 'success' => true,
-                'provider' => 'twilio'
+                'provider' => 'twilio',
+                'message_sid' => $body['sid'] ?? null
             ];
 
         } catch (\Exception $e) {
@@ -242,24 +263,59 @@ class SMSService
                 ];
             }
 
-            // TODO: Implement AWS SNS API call
-            // $sns = new \Aws\Sns\SnsClient([
-            //     'version' => 'latest',
-            //     'region' => $awsRegion,
-            //     'credentials' => [
-            //         'key' => $awsKey,
-            //         'secret' => $awsSecret
-            //     ]
-            // ]);
-            //
-            // $result = $sns->publish([
-            //     'Message' => "Seu código de verificação é: {$code}\nVálido por 5 minutos.",
-            //     'PhoneNumber' => $phone
-            // ]);
+            // Use Guzzle HTTP client with AWS Signature V4
+            $client = \Config\Services::curlrequest();
+
+            $message = "Seu código de verificação é: {$code}\nVálido por 5 minutos.";
+
+            // AWS SNS endpoint
+            $endpoint = "https://sns.{$awsRegion}.amazonaws.com/";
+
+            // Prepare request parameters
+            $params = [
+                'Action' => 'Publish',
+                'Message' => $message,
+                'PhoneNumber' => $phone,
+                'Version' => '2010-03-31'
+            ];
+
+            // Sign request with AWS Signature Version 4
+            $signedHeaders = $this->signAWSRequest(
+                'POST',
+                $endpoint,
+                $params,
+                $awsKey,
+                $awsSecret,
+                $awsRegion
+            );
+
+            // Make request
+            $response = $client->post($endpoint, [
+                'headers' => $signedHeaders,
+                'form_params' => $params
+            ]);
+
+            $statusCode = $response->getStatusCode();
+            $body = $response->getBody();
+
+            if ($statusCode !== 200) {
+                log_message('error', 'AWS SNS SMS failed: ' . $body);
+                return [
+                    'success' => false,
+                    'error' => 'Falha ao enviar SMS via AWS SNS'
+                ];
+            }
+
+            // Parse XML response
+            $xml = simplexml_load_string($body);
+            $messageId = (string)$xml->PublishResult->MessageId ?? null;
+
+            log_message('info', "SMS sent via AWS SNS to {$phone}, MessageId: {$messageId}");
 
             return [
                 'success' => true,
-                'provider' => 'aws_sns'
+                'provider' => 'aws_sns',
+                'message_id' => $messageId
             ];
 
         } catch (\Exception $e) {
@@ -377,5 +433,89 @@ class SMSService
         }
 
         $cache->save($key, $data, 3600); // 1 hour
+    }
+
+    /**
+     * Sign AWS request with Signature Version 4
+     *
+     * @param string $method HTTP method
+     * @param string $endpoint AWS endpoint URL
+     * @param array $params Request parameters
+     * @param string $accessKey AWS access key
+     * @param string $secretKey AWS secret key
+     * @param string $region AWS region
+     * @return array Signed headers
+     */
+    protected function signAWSRequest(
+        string $method,
+        string $endpoint,
+        array $params,
+        string $accessKey,
+        string $secretKey,
+        string $region
+    ): array {
+        $service = 'sns';
+        $algorithm = 'AWS4-HMAC-SHA256';
+        $dateTime = gmdate('Ymd\THis\Z');
+        $date = gmdate('Ymd');
+
+        // Create canonical request
+        $parsedUrl = parse_url($endpoint);
+        $host = $parsedUrl['host'];
+        $uri = $parsedUrl['path'] ?? '/';
+
+        // Canonical query string
+        ksort($params);
+        $canonicalQueryString = http_build_query($params);
+
+        // Canonical headers
+        $canonicalHeaders = "content-type:application/x-www-form-urlencoded\n";
+        $canonicalHeaders .= "host:{$host}\n";
+        $canonicalHeaders .= "x-amz-date:{$dateTime}\n";
+
+        $signedHeaders = 'content-type;host;x-amz-date';
+
+        // Payload hash
+        $payloadHash = hash('sha256', $canonicalQueryString);
+
+        // Canonical request
+        $canonicalRequest = implode("\n", [
+            $method,
+            $uri,
+            '',  // query string (empty for POST)
+            $canonicalHeaders,
+            $signedHeaders,
+            $payloadHash
+        ]);
+
+        // Create string to sign
+        $credentialScope = "{$date}/{$region}/{$service}/aws4_request";
+        $stringToSign = implode("\n", [
+            $algorithm,
+            $dateTime,
+            $credentialScope,
+            hash('sha256', $canonicalRequest)
+        ]);
+
+        // Calculate signature
+        $kDate = hash_hmac('sha256', $date, 'AWS4' . $secretKey, true);
+        $kRegion = hash_hmac('sha256', $region, $kDate, true);
+        $kService = hash_hmac('sha256', $service, $kRegion, true);
+        $kSigning = hash_hmac('sha256', 'aws4_request', $kService, true);
+
+        $signature = hash_hmac('sha256', $stringToSign, $kSigning);
+
+        // Create authorization header
+        $authorization = "{$algorithm} ";
+        $authorization .= "Credential={$accessKey}/{$credentialScope}, ";
+        $authorization .= "SignedHeaders={$signedHeaders}, ";
+        $authorization .= "Signature={$signature}";
+
+        return [
+            'Content-Type' => 'application/x-www-form-urlencoded',
+            'Host' => $host,
+            'X-Amz-Date' => $dateTime,
+            'Authorization' => $authorization
+        ];
     }
 }
