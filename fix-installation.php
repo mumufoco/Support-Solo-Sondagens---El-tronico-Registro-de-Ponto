@@ -24,7 +24,18 @@ function printError($text) { echo RED . "✗ " . $text . NC . "\n"; }
 function printWarning($text) { echo YELLOW . "⚠ " . $text . NC . "\n"; }
 function printInfo($text) { echo BLUE . "ℹ " . $text . NC . "\n"; }
 
+// Detectar se funções de sistema estão disponíveis
+$execAvailable = function_exists('exec') && !in_array('exec', array_map('trim', explode(',', ini_get('disable_functions'))));
+$passthruAvailable = function_exists('passthru') && !in_array('passthru', array_map('trim', explode(',', ini_get('disable_functions'))));
+
 printHeader("DIAGNÓSTICO E CORREÇÃO DA INSTALAÇÃO");
+
+if (!$execAvailable && !$passthruAvailable) {
+    printWarning("ATENÇÃO: Funções exec() e passthru() estão desabilitadas!");
+    printInfo("Este ambiente tem restrições de hospedagem compartilhada.");
+    printInfo("Usando métodos alternativos via SQL direto...");
+    echo "\n";
+}
 
 // ============================================================================
 // ETAPA 1: VERIFICAR ARQUIVO .env
@@ -161,34 +172,101 @@ foreach ($migrationFiles as $file) {
 // ============================================================================
 printHeader("ETAPA 4: Execução de Migrations");
 
-printInfo("Executando: php spark migrate");
-echo "\n";
+if ($execAvailable || $passthruAvailable) {
+    printInfo("Executando: php spark migrate");
+    echo "\n";
 
-// Executar migrations com saída detalhada
-passthru("php spark migrate 2>&1", $returnCode);
+    // Executar migrations com saída detalhada
+    $returnCode = 0;
+    if ($passthruAvailable) {
+        passthru("php spark migrate 2>&1", $returnCode);
+    } else {
+        exec("php spark migrate 2>&1", $output, $returnCode);
+        foreach ($output as $line) {
+            echo $line . "\n";
+        }
+    }
 
-echo "\n";
+    echo "\n";
 
-if ($returnCode === 0) {
-    printSuccess("Migrations executadas com sucesso");
+    if ($returnCode === 0) {
+        printSuccess("Migrations executadas com sucesso");
+    } else {
+        printError("Erro ao executar migrations (código: $returnCode)");
+        printInfo("\nTentando executar migrations individuais...");
+
+        // Tentar rollback primeiro
+        printInfo("Executando rollback...");
+        if ($passthruAvailable) {
+            passthru("php spark migrate:rollback 2>&1");
+        } else {
+            exec("php spark migrate:rollback 2>&1", $output);
+            foreach ($output as $line) {
+                echo $line . "\n";
+            }
+        }
+
+        // Tentar executar novamente
+        printInfo("\nExecutando migrations novamente...");
+        if ($passthruAvailable) {
+            passthru("php spark migrate --all 2>&1", $returnCode);
+        } else {
+            exec("php spark migrate --all 2>&1", $output, $returnCode);
+            foreach ($output as $line) {
+                echo $line . "\n";
+            }
+        }
+
+        if ($returnCode !== 0) {
+            printError("Ainda há erros nas migrations");
+            printInfo("\nPara debug manual:");
+            echo "  php spark migrate:status\n";
+            echo "  php spark migrate:rollback\n";
+            echo "  php spark migrate --all\n";
+        }
+    }
 } else {
-    printError("Erro ao executar migrations (código: $returnCode)");
-    printInfo("\nTentando executar migrations individuais...");
+    // Método alternativo: usar database.sql
+    printWarning("Funções exec/passthru desabilitadas - usando database.sql");
+    echo "\n";
 
-    // Tentar rollback primeiro
-    printInfo("Executando rollback...");
-    passthru("php spark migrate:rollback 2>&1");
+    if (!file_exists('public/database.sql')) {
+        printError("Arquivo public/database.sql não encontrado!");
+        printInfo("SOLUÇÃO: Use o instalador web em public/install.php");
+        exit(1);
+    }
 
-    // Tentar executar novamente
-    printInfo("\nExecutando migrations novamente...");
-    passthru("php spark migrate --all 2>&1", $returnCode);
+    printInfo("Importando estrutura via public/database.sql...");
 
-    if ($returnCode !== 0) {
-        printError("Ainda há erros nas migrations");
-        printInfo("\nPara debug manual:");
-        echo "  php spark migrate:status\n";
-        echo "  php spark migrate:rollback\n";
-        echo "  php spark migrate --all\n";
+    try {
+        $mysqli = new mysqli($dbHost, $dbUser, $dbPass, $dbName, (int)$dbPort);
+
+        $sql = file_get_contents('public/database.sql');
+
+        // Remove comments
+        $sql = preg_replace('/--.*$/m', '', $sql);
+        $sql = preg_replace('#/\*.*?\*/#s', '', $sql);
+
+        // Execute with multi_query
+        if ($mysqli->multi_query($sql)) {
+            do {
+                if ($result = $mysqli->store_result()) {
+                    $result->free();
+                }
+            } while ($mysqli->more_results() && $mysqli->next_result());
+        }
+
+        if ($mysqli->error) {
+            printWarning("Avisos: " . $mysqli->error);
+        } else {
+            printSuccess("Estrutura do banco importada!");
+        }
+
+        $mysqli->close();
+        $returnCode = 0; // Success
+    } catch (Exception $e) {
+        printError("Erro ao importar database.sql: " . $e->getMessage());
+        $returnCode = 1;
     }
 }
 
@@ -255,17 +333,34 @@ try {
 // ============================================================================
 printHeader("ETAPA 6: Execução de Seeders");
 
-$seeders = ['AdminUserSeeder', 'SettingsSeeder'];
+if ($execAvailable || $passthruAvailable) {
+    $seeders = ['AdminUserSeeder', 'SettingsSeeder'];
 
-foreach ($seeders as $seeder) {
-    printInfo("Executando $seeder...");
-    passthru("php spark db:seed $seeder 2>&1", $returnCode);
+    foreach ($seeders as $seeder) {
+        printInfo("Executando $seeder...");
 
-    if ($returnCode === 0) {
-        printSuccess("$seeder executado");
-    } else {
-        printWarning("$seeder pode ter falhado ou já foi executado");
+        $returnCode = 0;
+        if ($passthruAvailable) {
+            passthru("php spark db:seed $seeder 2>&1", $returnCode);
+        } else {
+            exec("php spark db:seed $seeder 2>&1", $output, $returnCode);
+            foreach ($output as $line) {
+                echo "  $line\n";
+            }
+        }
+
+        if ($returnCode === 0) {
+            printSuccess("$seeder executado");
+        } else {
+            printWarning("$seeder pode ter falhado ou já foi executado");
+        }
+        echo "\n";
     }
+} else {
+    printWarning("Funções exec/passthru desabilitadas");
+    printInfo("Seeders já incluídos no database.sql importado");
+    printWarning("\nATENÇÃO: Verifique se o usuário admin foi criado!");
+    printInfo("Use o instalador web (public/install.php) para criar admin customizado");
     echo "\n";
 }
 
