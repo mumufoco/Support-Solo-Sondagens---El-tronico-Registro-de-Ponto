@@ -14,14 +14,37 @@
 
 require_once __DIR__ . '/vendor/autoload.php';
 
+use CodeIgniter\Boot;
+use Config\Paths;
 use Workerman\Worker;
 use Workerman\Timer;
 
 // Load CodeIgniter environment
-require __DIR__ . '/app/Config/Paths.php';
-$paths = new Config\Paths();
+define('FCPATH', __DIR__ . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR);
 
-require SYSTEMPATH . 'bootstrap.php';
+require __DIR__ . '/app/Config/Paths.php';
+$paths = new Paths();
+
+// Define path constants
+define('APPPATH', realpath(FCPATH . '../app') . DIRECTORY_SEPARATOR);
+define('ROOTPATH', realpath(APPPATH . '../') . DIRECTORY_SEPARATOR);
+define('SYSTEMPATH', realpath($paths->systemDirectory) . DIRECTORY_SEPARATOR);
+define('WRITEPATH', realpath($paths->writableDirectory) . DIRECTORY_SEPARATOR);
+
+// Load .env file
+require_once SYSTEMPATH . 'Config/DotEnv.php';
+$dotenv = new \CodeIgniter\Config\DotEnv(ROOTPATH);
+$dotenv->load();
+
+// Define environment
+if (!defined('ENVIRONMENT')) {
+    $env = $_ENV['CI_ENVIRONMENT'] ?? $_SERVER['CI_ENVIRONMENT'] ?? getenv('CI_ENVIRONMENT') ?: 'production';
+    define('ENVIRONMENT', $env);
+}
+
+// Bootstrap CodeIgniter for console
+require $paths->systemDirectory . '/Boot.php';
+Boot::bootConsole($paths);
 
 // Create WebSocket server
 $wsServer = new Worker('websocket://0.0.0.0:2346');
