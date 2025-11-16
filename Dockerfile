@@ -1,107 +1,151 @@
-# Multi-stage Dockerfile for Brazilian Electronic Timesheet System
-# Stage 1: PHP-FPM with CodeIgniter 4
-FROM php:8.2-fpm-alpine AS php-app
+# ==============================================================================
+# Dockerfile - Sistema de Ponto Eletrônico Brasileiro
+# Multi-stage build para otimização de tamanho e segurança
+# ==============================================================================
 
-# Set working directory
-WORKDIR /var/www/html
-
-# Install system dependencies
-RUN apk add --no-cache \
-    bash \
-    curl \
-    git \
-    zip \
-    unzip \
-    libpng-dev \
-    libjpeg-turbo-dev \
-    freetype-dev \
-    libzip-dev \
-    icu-dev \
-    oniguruma-dev \
-    mysql-client \
-    nginx \
-    supervisor
-
-# Install PHP extensions
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) \
-        pdo_mysql \
-        mysqli \
-        gd \
-        zip \
-        intl \
-        mbstring \
-        opcache \
-        exif
-
-# Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-
-# Copy application files
-COPY . /var/www/html
-
-# Set permissions
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html \
-    && chmod -R 777 /var/www/html/writable
-
-# Install PHP dependencies
-RUN composer install --no-dev --optimize-autoloader --no-interaction
-
-# Copy PHP configuration
-COPY docker/php/php.ini /usr/local/etc/php/conf.d/custom.ini
-COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
-
-# Expose port
-EXPOSE 9000
-
-CMD ["php-fpm"]
-
-# Stage 2: DeepFace Python API
-FROM python:3.11-slim AS deepface-api
+# ------------------------------------------------------------------------------
+# Stage 1: Builder - Instala dependências do Composer
+# ------------------------------------------------------------------------------
+FROM composer:2.7 AS composer-builder
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    cmake \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
-    libgl1-mesa-glx \
-    && rm -rf /var/lib/apt/lists/*
+# Copy apenas arquivos necessários para cache de dependências
+COPY composer.json composer.lock ./
 
-# Copy requirements and install Python packages
-COPY deepface_api/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Instalar dependências de produção (sem dev)
+RUN composer install \
+    --no-dev \
+    --no-scripts \
+    --no-autoloader \
+    --prefer-dist \
+    --optimize-autoloader
 
-# Copy DeepFace API
-COPY deepface_api/ /app/
+# Copy código fonte e gerar autoloader otimizado
+COPY . .
+RUN composer dump-autoload --optimize --no-dev
 
-# Create directories
-RUN mkdir -p /app/faces /app/logs
+# ------------------------------------------------------------------------------
+# Stage 2: Runtime - Imagem final para produção
+# ------------------------------------------------------------------------------
+FROM php:8.4-fpm-alpine
 
-# Expose port
-EXPOSE 5000
+LABEL maintainer="Support Solo Sondagens"
+LABEL description="Sistema de Ponto Eletrônico - CodeIgniter 4"
+LABEL version="1.0.0"
 
-# Run Flask app
-CMD ["python", "app.py"]
+# Variáveis de ambiente para build
+ENV COMPOSER_ALLOW_SUPERUSER=1 \
+    PHP_MEMORY_LIMIT=512M \
+    PHP_UPLOAD_MAX_FILESIZE=10M \
+    PHP_POST_MAX_SIZE=10M \
+    TZ=America/Sao_Paulo
 
-# Stage 3: Nginx Web Server
-FROM nginx:alpine AS nginx-server
+# Instalar dependências do sistema e extensões PHP
+RUN apk add --no-cache \
+    # Dependências de build
+    $PHPIZE_DEPS \
+    # Bibliotecas essenciais
+    freetype-dev \
+    libjpeg-turbo-dev \
+    libpng-dev \
+    libzip-dev \
+    icu-dev \
+    oniguruma-dev \
+    # Ferramentas úteis
+    git \
+    curl \
+    nginx \
+    supervisor \
+    tzdata \
+    mysql-client \
+    bash \
+    && \
+    # Configurar extensões GD
+    docker-php-ext-configure gd \
+        --with-freetype \
+        --with-jpeg \
+    && \
+    # Instalar extensões PHP
+    docker-php-ext-install -j$(nproc) \
+        gd \
+        intl \
+        mbstring \
+        mysqli \
+        pdo \
+        pdo_mysql \
+        zip \
+        opcache \
+        exif \
+        bcmath \
+    && \
+    # Instalar Redis via PECL
+    pecl install redis-6.0.2 \
+    && docker-php-ext-enable redis \
+    && \
+    # Limpar cache
+    apk del $PHPIZE_DEPS \
+    && rm -rf /var/cache/apk/* /tmp/*
 
-# Copy Nginx configuration
+# Configurar timezone
+RUN ln -sf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo $TZ > /etc/timezone
+
+# Criar usuário não-root para rodar a aplicação
+RUN addgroup -g 1000 -S www \
+    && adduser -u 1000 -S www -G www
+
+# Diretório de trabalho
+WORKDIR /var/www/html
+
+# Copiar vendor do stage builder
+COPY --from=composer-builder --chown=www:www /app/vendor ./vendor
+
+# Copiar código fonte
+COPY --chown=www:www . .
+
+# Criar diretórios necessários com permissões corretas
+RUN mkdir -p \
+    writable/cache \
+    writable/logs \
+    writable/session \
+    writable/uploads \
+    storage/backups \
+    storage/cache \
+    storage/faces \
+    storage/keys \
+    storage/logs \
+    storage/qrcodes \
+    storage/receipts \
+    storage/reports \
+    storage/uploads \
+    && chown -R www:www writable storage \
+    && chmod -R 755 writable storage
+
+# Copiar configurações PHP customizadas
+COPY docker/php/php.ini /usr/local/etc/php/conf.d/99-custom.ini
+COPY docker/php/php-fpm.conf /usr/local/etc/php-fpm.d/zz-custom.conf
+
+# Copiar configuração Nginx
 COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
-COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY docker/nginx/default.conf /etc/nginx/http.d/default.conf
 
-# Copy static assets
-COPY public /var/www/html/public
+# Copiar supervisor config
+COPY docker/supervisor/supervisord.conf /etc/supervisord.conf
 
-# Expose port
-EXPOSE 80 443
+# Copiar script de entrypoint
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-CMD ["nginx", "-g", "daemon off;"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD php -r "echo 'healthy';" || exit 1
+
+# Expor portas
+EXPOSE 80
+
+# Entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Comando padrão: iniciar supervisor (gerencia nginx + php-fpm)
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
