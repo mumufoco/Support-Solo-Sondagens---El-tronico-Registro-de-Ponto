@@ -28,6 +28,10 @@ class EmployeeModel extends Model
         'active',
         'extra_hours_balance',
         'owed_hours_balance',
+        'two_factor_enabled',
+        'two_factor_secret',
+        'two_factor_backup_codes',
+        'two_factor_verified_at',
     ];
 
     // Dates
