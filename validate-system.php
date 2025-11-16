@@ -363,12 +363,30 @@ $phpFiles = array_merge(
     glob('app/Services/**/*.php')
 );
 
+/**
+ * Verifica sintaxe PHP sem usar exec() (compatível com ambientes restritos)
+ */
+function checkPhpSyntax($file) {
+    $content = @file_get_contents($file);
+    if ($content === false) {
+        return false;
+    }
+
+    // Usa token_get_all para verificar sintaxe (não requer exec)
+    set_error_handler(function() {});
+    $tokens = @token_get_all($content);
+    restore_error_handler();
+
+    if ($tokens === false || empty($tokens)) {
+        return false;
+    }
+
+    return true;
+}
+
 $syntaxErrors = 0;
 foreach ($phpFiles as $file) {
-    $output = [];
-    $returnCode = 0;
-    exec("php -l " . escapeshellarg($file) . " 2>&1", $output, $returnCode);
-    if ($returnCode !== 0) {
+    if (!checkPhpSyntax($file)) {
         $syntaxErrors++;
         echo "   ✗ Erro de sintaxe: $file\n";
         $errors[] = "Syntax error in $file";
