@@ -26,6 +26,7 @@ class Filters extends BaseConfig
 
         // Custom filters
         'auth'          => \App\Filters\AuthFilter::class,
+        'api-auth'      => \App\Filters\AuthFilter::class, // API authentication (same as auth, returns JSON)
         'admin'         => \App\Filters\AdminFilter::class,
         'manager'       => \App\Filters\ManagerFilter::class,
         'cors'          => \App\Filters\CorsFilter::class,

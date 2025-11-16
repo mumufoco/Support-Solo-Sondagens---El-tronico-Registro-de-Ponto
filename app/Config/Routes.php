@@ -186,10 +186,12 @@ $routes->group('warnings', ['filter' => 'auth|manager'], static function ($route
  * --------------------------------------------------------------------
  */
 $routes->group('lgpd', ['filter' => 'auth'], static function ($routes) {
-    $routes->get('consents', 'Setting\SettingController::consents');
-    $routes->post('consent/grant', 'Setting\SettingController::grantConsent');
-    $routes->post('consent/revoke', 'Setting\SettingController::revokeConsent');
-    $routes->get('export', 'Setting\SettingController::exportData');
+    $routes->get('consents', 'LGPDController::consents');
+    $routes->post('consent/grant', 'LGPDController::grantConsent');
+    $routes->post('consent/revoke', 'LGPDController::revokeConsent');
+    $routes->get('export', 'LGPDController::exportData');
+    $routes->post('export/request', 'LGPDController::requestExport');
+    $routes->get('export/download/(:segment)', 'LGPDController::downloadExport/$1');
 });
 
 /*

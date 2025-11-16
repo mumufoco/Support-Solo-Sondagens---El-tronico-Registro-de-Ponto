@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Controllers;
+namespace App\Controllers\Geolocation;
 
 use App\Controllers\BaseController;
 use App\Models\EmployeeModel;
