@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use CodeIgniter\Model;
+use App\Services\Security\EncryptionService;
 
 class SettingModel extends Model
 {
@@ -21,6 +22,12 @@ class SettingModel extends Model
         'editable',
     ];
 
+    /**
+     * Encryption service instance
+     * @var EncryptionService|null
+     */
+    protected ?EncryptionService $encryptionService = null;
+
     // Dates
     protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';
@@ -37,6 +44,20 @@ class SettingModel extends Model
     protected $validationMessages = [];
     protected $skipValidation       = false;
     protected $cleanValidationRules = true;
+
+    /**
+     * Get or initialize encryption service
+     *
+     * @return EncryptionService
+     */
+    protected function getEncryptionService(): EncryptionService
+    {
+        if ($this->encryptionService === null) {
+            $this->encryptionService = new EncryptionService();
+        }
+
+        return $this->encryptionService;
+    }
 
     /**
      * Get setting value by key
@@ -59,10 +80,26 @@ class SettingModel extends Model
     {
         $existing = $this->where('key', $key)->first();
 
+        $settingType = $type ?? ($existing->type ?? 'string');
+
+        // Encrypt if type is 'encrypted'
+        if ($settingType === 'encrypted') {
+            try {
+                $value = $this->getEncryptionService()->encrypt((string) $value);
+            } catch (\Exception $e) {
+                log_message('error', 'Failed to encrypt setting: ' . $e->getMessage());
+                throw new \RuntimeException('Failed to encrypt setting value: ' . $e->getMessage());
+            }
+        } elseif (is_array($value)) {
+            $value = json_encode($value);
+        } else {
+            $value = (string) $value;
+        }
+
         $data = [
             'key'   => $key,
-            'value' => is_array($value) ? json_encode($value) : (string) $value,
-            'type'  => $type ?? ($existing->type ?? 'string'),
+            'value' => $value,
+            'type'  => $settingType,
         ];
 
         if ($existing) {
@@ -118,8 +155,14 @@ class SettingModel extends Model
                 return json_decode($value, true);
 
             case 'encrypted':
-                // TODO: Implement decryption
-                return $value;
+                try {
+                    return $this->getEncryptionService()->decrypt($value);
+                } catch (\Exception $e) {
+                    log_message('error', 'Failed to decrypt setting: ' . $e->getMessage());
+                    // Return null on decryption failure instead of throwing
+                    // This prevents breaking the application if key is rotated
+                    return null;
+                }
 
             default:
                 return $value;
