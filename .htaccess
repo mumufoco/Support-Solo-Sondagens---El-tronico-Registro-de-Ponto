@@ -34,14 +34,6 @@ Options -Indexes
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^(.*)$ public/$1 [L]
-
-    # Redirect www to non-www (optional)
-    # RewriteCond %{HTTP_HOST} ^www\.(.*)$ [NC]
-    # RewriteRule ^(.*)$ https://%1/$1 [R=301,L]
-
-    # Force HTTPS (uncomment for production)
-    # RewriteCond %{HTTPS} off
-    # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 </IfModule>
 
 # =========================================
@@ -84,43 +76,3 @@ Options -Indexes
 <FilesMatch "(^composer\.(json|lock)$|^package(-lock)?\.json$|^phpunit\.xml|^\.gitignore)">
     Require all denied
 </FilesMatch>
-
-# =========================================
-# Performance Optimization
-# =========================================
-
-# Enable compression (via mod_deflate, not zlib)
-<IfModule mod_deflate.c>
-    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
-</IfModule>
-
-# Browser caching
-<IfModule mod_expires.c>
-    ExpiresActive On
-
-    # Images
-    ExpiresByType image/jpeg "access plus 1 year"
-    ExpiresByType image/png "access plus 1 year"
-    ExpiresByType image/gif "access plus 1 year"
-    ExpiresByType image/webp "access plus 1 year"
-    ExpiresByType image/svg+xml "access plus 1 year"
-
-    # CSS and JavaScript
-    ExpiresByType text/css "access plus 1 month"
-    ExpiresByType application/javascript "access plus 1 month"
-
-    # Fonts
-    ExpiresByType font/woff2 "access plus 1 year"
-    ExpiresByType font/woff "access plus 1 year"
-    ExpiresByType font/ttf "access plus 1 year"
-
-    # Default
-    ExpiresDefault "access plus 1 week"
-</IfModule>
-
-# =========================================
-# Error Documents (Optional)
-# =========================================
-
-# ErrorDocument 404 /public/index.php
-# ErrorDocument 500 /public/index.php
