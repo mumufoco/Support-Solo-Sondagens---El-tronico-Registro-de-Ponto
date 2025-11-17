@@ -11,6 +11,14 @@
 // Get the system path
 $systemPath = __DIR__ . '/../vendor/codeigniter4/framework/system';
 
+// CRITICAL: Ensure writable/session directory exists before framework boots
+// This prevents "Unable to create file writable/session/ci_session..." errors
+$sessionPath = __DIR__ . '/../writable/session';
+if (!is_dir($sessionPath)) {
+    @mkdir($sessionPath, 0777, true);
+    @chmod($sessionPath, 0777);
+}
+
 // Critical exception classes that MUST be loaded before DotEnv
 $criticalClasses = [
     'CodeIgniter\Exceptions\ExceptionInterface' => '/Exceptions/ExceptionInterface.php',

@@ -16,14 +16,41 @@
 // Session save path - use project directory instead of system directory
 $sessionPath = __DIR__ . '/../writable/session';
 
-// Create directory if it doesn't exist
+// Create directory if it doesn't exist with proper error handling
 if (!is_dir($sessionPath)) {
-    @mkdir($sessionPath, 0777, true);
+    // Try to create directory
+    if (@mkdir($sessionPath, 0777, true)) {
+        // Set permissions explicitly after creation
+        @chmod($sessionPath, 0777);
+
+        // Create security index.html
+        $indexFile = $sessionPath . '/index.html';
+        if (!file_exists($indexFile)) {
+            @file_put_contents($indexFile, '<!DOCTYPE html><html><head><title>403 Forbidden</title></head><body><h1>Directory access is forbidden.</h1></body></html>');
+        }
+
+        // Create .htaccess for extra security
+        $htaccessFile = $sessionPath . '/.htaccess';
+        if (!file_exists($htaccessFile)) {
+            @file_put_contents($htaccessFile, "Deny from all\n");
+        }
+    }
+}
+
+// Ensure directory has correct permissions
+if (is_dir($sessionPath)) {
+    @chmod($sessionPath, 0777);
 }
 
 // Set session save path (MUST be set before session_start)
-if (is_dir($sessionPath) && is_writable($sessionPath)) {
+if (is_dir($sessionPath)) {
     ini_set('session.save_path', $sessionPath);
+
+    // Verify it's writable by trying to create a test file
+    $testFile = $sessionPath . '/.test_' . time();
+    if (@touch($testFile)) {
+        @unlink($testFile);
+    }
 }
 
 // Force HTTPS-only cookies in production (CRITICAL for security!)
