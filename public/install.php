@@ -40,6 +40,15 @@ if (file_exists(__DIR__ . '/../writable/installed.lock')) {
 // Start output buffering to prevent "headers already sent" errors
 ob_start();
 
+// Configure session to use writable/session directory
+$sessionPath = __DIR__ . '/../writable/session';
+if (!is_dir($sessionPath)) {
+    mkdir($sessionPath, 0777, true);
+}
+if (is_writable($sessionPath)) {
+    ini_set('session.save_path', $sessionPath);
+}
+
 // Start session
 session_start();
 

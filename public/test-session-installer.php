@@ -6,6 +6,15 @@
  * Acesse: http://seudominio.com/test-session-installer.php
  */
 
+// Configure session to use writable/session directory
+$sessionPath = __DIR__ . '/../writable/session';
+if (!is_dir($sessionPath)) {
+    mkdir($sessionPath, 0777, true);
+}
+if (is_writable($sessionPath)) {
+    ini_set('session.save_path', $sessionPath);
+}
+
 session_start();
 
 ?>
