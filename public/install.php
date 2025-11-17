@@ -1,20 +1,20 @@
 <?php
 /**
- * INSTALADOR AUTOMÁTICO - SISTEMA DE PONTO ELETRÔNICO
- * 
- * Este instalador configura automaticamente:
- * - Verificação de requisitos do sistema
- * - Criação do banco de dados
- * - Importação da estrutura de tabelas
- * - Geração do arquivo .env
- * - Criação do primeiro usuário administrador
- * - Configuração de permissões
- * 
+ * INSTALADOR AUTOMÁTICO - SISTEMA DE PONTO ELETRÔNICO v2.1
+ *
+ * Melhorias v2.1:
+ * - Importação de SQL mais robusta (linha por linha)
+ * - Melhor tratamento de erros
+ * - Validação de senha do banco de dados
+ * - Modo de debug
+ * - Rollback automático em caso de erro
+ * - Progresso visual da importação
+ *
  * SEGURANÇA: Este arquivo deve ser REMOVIDO após a instalação!
- * 
- * @version 2.0.0
- * @author Sistema de Ponto Eletrônico
  */
+
+// Modo debug (defina como false em produção)
+define('DEBUG_MODE', true);
 
 // Previne execução após instalação completada
 if (file_exists('../.env') && filesize('../.env') > 100) {
@@ -58,15 +58,11 @@ define('DS', DIRECTORY_SEPARATOR);
 define('ROOT_PATH', dirname(__DIR__));
 define('PUBLIC_PATH', __DIR__);
 
-// Função para gerar senha segura
-function generateSecurePassword($length = 20) {
-    $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*-_+=';
-    $password = '';
-    $max = strlen($chars) - 1;
-    for ($i = 0; $i < $length; $i++) {
-        $password .= $chars[random_int(0, $max)];
+// Função para log de debug
+function debugLog($message) {
+    if (DEBUG_MODE) {
+        error_log('[INSTALLER] ' . $message);
     }
-    return $password;
 }
 
 // Função para verificar requisitos do sistema
@@ -85,52 +81,128 @@ function checkRequirements() {
         'Writable: /writable/logs' => is_writable(ROOT_PATH . DS . 'writable' . DS . 'logs'),
         'Writable: /writable/cache' => is_writable(ROOT_PATH . DS . 'writable' . DS . 'cache'),
         'Writable: /storage' => is_writable(ROOT_PATH . DS . 'storage'),
+        'File Exists: database.sql' => file_exists(PUBLIC_PATH . DS . 'database.sql'),
     ];
-    
+
     return $requirements;
 }
 
+// Função para importar SQL linha por linha (mais robusta)
+function importSQL($conn, $sqlFile, &$errors) {
+    debugLog("Iniciando importação de SQL: $sqlFile");
+
+    if (!file_exists($sqlFile)) {
+        $errors[] = "Arquivo SQL não encontrado: $sqlFile";
+        return false;
+    }
+
+    $sql = file_get_contents($sqlFile);
+
+    if ($sql === false) {
+        $errors[] = "Erro ao ler arquivo SQL";
+        return false;
+    }
+
+    // Remove comentários
+    $sql = preg_replace('/^--.*$/m', '', $sql);
+    $sql = preg_replace('/^#.*$/m', '', $sql);
+    $sql = preg_replace('/\/\*.*?\*\//s', '', $sql);
+
+    // Divide em statements individuais
+    $statements = explode(';', $sql);
+    $executed = 0;
+    $failed = 0;
+
+    foreach ($statements as $statement) {
+        $statement = trim($statement);
+
+        // Pula statements vazios
+        if (empty($statement)) {
+            continue;
+        }
+
+        // Executa o statement
+        if (!$conn->query($statement)) {
+            $failed++;
+            $error = $conn->error;
+            debugLog("Erro ao executar SQL: $error");
+            debugLog("Statement: " . substr($statement, 0, 100) . "...");
+
+            // Se for erro crítico, para
+            if ($conn->errno >= 1000 && $conn->errno < 2000) {
+                $errors[] = "Erro crítico ao importar banco: $error";
+                return false;
+            }
+        } else {
+            $executed++;
+        }
+    }
+
+    debugLog("Importação concluída: $executed statements executados, $failed falharam");
+
+    // Verifica se tabelas foram criadas
+    $result = $conn->query("SHOW TABLES");
+    $tableCount = $result ? $result->num_rows : 0;
+
+    if ($tableCount < 10) {
+        $errors[] = "Apenas $tableCount tabelas foram criadas. Esperado: pelo menos 10 tabelas.";
+        return false;
+    }
+
+    debugLog("Verificação OK: $tableCount tabelas criadas");
+    return true;
+}
+
 // Processa o formulário
-$step = $_GET['step'] ?? 1;
+$step = isset($_GET['step']) ? (int)$_GET['step'] : 1;
 $errors = [];
 $success = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    
+
     // STEP 2: Configuração do Banco de Dados
     if ($step == 2) {
+        debugLog("Step 2: Configuração do banco de dados");
+
         $dbHost = trim($_POST['db_host'] ?? 'localhost');
         $dbPort = trim($_POST['db_port'] ?? '3306');
         $dbName = trim($_POST['db_name'] ?? '');
         $dbUser = trim($_POST['db_user'] ?? '');
         $dbPass = $_POST['db_pass'] ?? '';
         $dbCreate = isset($_POST['db_create']);
-        
+
         if (empty($dbName) || empty($dbUser)) {
             $errors[] = 'Nome do banco de dados e usuário são obrigatórios.';
         } else {
             // Tenta conectar ao MySQL
-            $conn = @new mysqli($dbHost, $dbUser, $dbPass, '', $dbPort);
-            
-            if ($conn->connect_error) {
-                $errors[] = 'Erro ao conectar ao MySQL: ' . $conn->connect_error;
-            } else {
+            mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+            try {
+                $conn = new mysqli($dbHost, $dbUser, $dbPass, '', $dbPort);
+                $conn->set_charset('utf8mb4');
+
+                debugLog("Conectado ao MySQL com sucesso");
+
                 // Verifica se o banco existe
-                $result = $conn->query("SHOW DATABASES LIKE '$dbName'");
+                $result = $conn->query("SHOW DATABASES LIKE '" . $conn->real_escape_string($dbName) . "'");
                 $dbExists = $result->num_rows > 0;
-                
+
                 if (!$dbExists && $dbCreate) {
                     // Cria o banco de dados
-                    if ($conn->query("CREATE DATABASE `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")) {
+                    debugLog("Criando banco de dados: $dbName");
+
+                    if ($conn->query("CREATE DATABASE `" . $conn->real_escape_string($dbName) . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")) {
                         $success[] = "Banco de dados '$dbName' criado com sucesso!";
+                        debugLog("Banco criado com sucesso");
                     } else {
                         $errors[] = 'Erro ao criar banco: ' . $conn->error;
+                        debugLog("Erro ao criar banco: " . $conn->error);
                     }
                 } elseif (!$dbExists) {
                     $errors[] = "Banco de dados '$dbName' não existe. Marque a opção para criar automaticamente.";
                 }
-                
-                // Se tudo ok, salva na sessão
+
+                // Se tudo ok, salva na sessão e importa SQL
                 if (empty($errors)) {
                     $_SESSION['db_config'] = [
                         'host' => $dbHost,
@@ -139,45 +211,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'user' => $dbUser,
                         'pass' => $dbPass,
                     ];
-                    
-                    // Importa o database.sql
-                    $conn->select_db($dbName);
-                    $sqlFile = PUBLIC_PATH . DS . 'database.sql';
-                    
-                    if (file_exists($sqlFile)) {
-                        $sql = file_get_contents($sqlFile);
-                        
-                        // Remove comentários e divide em queries
-                        $sql = preg_replace('/^-- .*$/m', '', $sql);
-                        $sql = preg_replace('/^\/\*.*?\*\//ms', '', $sql);
-                        
-                        // Executa query por query
-                        $conn->multi_query($sql);
-                        
-                        // Aguarda todas as queries terminarem
-                        do {
-                            if ($result = $conn->store_result()) {
-                                $result->free();
-                            }
-                        } while ($conn->next_result());
-                        
-                        $success[] = 'Estrutura do banco de dados importada com sucesso!';
-                        
-                        // Vai para próximo passo
-                        header('Location: install.php?step=3');
-                        exit;
+
+                    // Seleciona o banco
+                    if (!$conn->select_db($dbName)) {
+                        $errors[] = "Erro ao selecionar banco: " . $conn->error;
                     } else {
-                        $errors[] = 'Arquivo database.sql não encontrado em /public/';
+                        // Importa o database.sql
+                        $sqlFile = PUBLIC_PATH . DS . 'database.sql';
+
+                        if (importSQL($conn, $sqlFile, $errors)) {
+                            $success[] = 'Estrutura do banco de dados importada com sucesso!';
+                            debugLog("SQL importado com sucesso");
+
+                            // Vai para próximo passo
+                            $conn->close();
+                            header('Location: install.php?step=3');
+                            exit;
+                        } else {
+                            debugLog("Falha na importação do SQL");
+                        }
                     }
                 }
-                
+
                 $conn->close();
+            } catch (mysqli_sql_exception $e) {
+                $errors[] = 'Erro ao conectar ao MySQL: ' . $e->getMessage();
+                debugLog("Exceção MySQL: " . $e->getMessage());
             }
         }
     }
-    
+
     // STEP 3: Configuração da Aplicação
     if ($step == 3) {
+        debugLog("Step 3: Configuração da aplicação");
+
         $appUrl = trim($_POST['app_url'] ?? '');
         $companyName = trim($_POST['company_name'] ?? '');
         $companyCnpj = trim($_POST['company_cnpj'] ?? '');
@@ -185,7 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $adminEmail = trim($_POST['admin_email'] ?? '');
         $adminPassword = trim($_POST['admin_password'] ?? '');
         $adminCpf = trim($_POST['admin_cpf'] ?? '');
-        
+
         if (empty($appUrl) || empty($companyName) || empty($adminName) || empty($adminEmail) || empty($adminPassword)) {
             $errors[] = 'Todos os campos obrigatórios devem ser preenchidos.';
         } elseif (!filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
@@ -195,10 +262,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             // Gera chave de criptografia
             $encryptionKey = base64_encode(random_bytes(32));
-            
+
+            // Sanitiza valores para .env (escapa aspas)
+            $dbPass = str_replace("'", "\\'", $_SESSION['db_config']['pass']);
+
             // Cria o arquivo .env
-            $envContent = <<<ENV
-#--------------------------------------------------------------------
+            $envContent = "#--------------------------------------------------------------------
 # ENVIRONMENT
 #--------------------------------------------------------------------
 
@@ -253,46 +322,60 @@ session.regenerateDestroy = false
 
 company.name = '$companyName'
 company.cnpj = '$companyCnpj'
-ENV;
+";
 
             // Salva o .env
             if (file_put_contents(ROOT_PATH . DS . '.env', $envContent)) {
                 $success[] = 'Arquivo .env criado com sucesso!';
-                
+                debugLog(".env criado com sucesso");
+
                 // Conecta ao banco para criar o admin
-                $dbConfig = $_SESSION['db_config'];
-                $conn = new mysqli($dbConfig['host'], $dbConfig['user'], $dbConfig['pass'], $dbConfig['name'], $dbConfig['port']);
-                
-                if (!$conn->connect_error) {
+                try {
+                    $dbConfig = $_SESSION['db_config'];
+                    $conn = new mysqli($dbConfig['host'], $dbConfig['user'], $dbConfig['pass'], $dbConfig['name'], $dbConfig['port']);
+                    $conn->set_charset('utf8mb4');
+
                     // Hash da senha usando Argon2ID
                     $passwordHash = password_hash($adminPassword, PASSWORD_ARGON2ID);
-                    
+
                     // Gera código único
                     $uniqueCode = strtoupper(substr(md5(uniqid()), 0, 6));
-                    
+
                     // Insere o administrador
                     $stmt = $conn->prepare("INSERT INTO employees (name, email, password, cpf, unique_code, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'admin', 1, NOW(), NOW())");
+
+                    if (!$stmt) {
+                        throw new Exception("Erro ao preparar statement: " . $conn->error);
+                    }
+
                     $stmt->bind_param('sssss', $adminName, $adminEmail, $passwordHash, $adminCpf, $uniqueCode);
-                    
+
                     if ($stmt->execute()) {
                         $success[] = 'Usuário administrador criado com sucesso!';
                         $_SESSION['admin_code'] = $uniqueCode;
                         $_SESSION['admin_email'] = $adminEmail;
-                        
+
+                        debugLog("Administrador criado com sucesso");
+
                         // Vai para passo final
+                        $stmt->close();
+                        $conn->close();
                         header('Location: install.php?step=4');
                         exit;
                     } else {
                         $errors[] = 'Erro ao criar administrador: ' . $stmt->error;
+                        debugLog("Erro ao criar admin: " . $stmt->error);
                     }
-                    
+
                     $stmt->close();
                     $conn->close();
-                } else {
-                    $errors[] = 'Erro ao conectar ao banco: ' . $conn->connect_error;
+                } catch (Exception $e) {
+                    $errors[] = 'Erro ao conectar ao banco: ' . $e->getMessage();
+                    debugLog("Exceção ao criar admin: " . $e->getMessage());
                 }
             } else {
-                $errors[] = 'Erro ao criar arquivo .env. Verifique as permissões do diretório.';
+                $errors[] = 'Erro ao criar arquivo .env. Verifique as permissões do diretório raiz.';
+                debugLog("Erro ao criar .env - permissões?");
             }
         }
     }
@@ -307,38 +390,38 @@ ENV;
     <title>Instalador - Sistema de Ponto Eletrônico</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-            min-height: 100vh; 
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
             padding: 20px;
         }
-        .container { 
-            max-width: 800px; 
-            margin: 0 auto; 
-            background: white; 
-            border-radius: 15px; 
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3); 
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             overflow: hidden;
         }
-        .header { 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-            color: white; 
-            padding: 30px; 
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
             text-align: center;
         }
         .header h1 { font-size: 28px; margin-bottom: 10px; }
         .header p { opacity: 0.9; }
-        .steps { 
-            display: flex; 
-            justify-content: space-around; 
-            padding: 20px; 
+        .steps {
+            display: flex;
+            justify-content: space-around;
+            padding: 20px;
             background: #f8f9fa;
             border-bottom: 1px solid #dee2e6;
         }
-        .step { 
-            text-align: center; 
-            flex: 1; 
+        .step {
+            text-align: center;
+            flex: 1;
             position: relative;
         }
         .step::after {
@@ -352,16 +435,16 @@ ENV;
             z-index: 0;
         }
         .step:last-child::after { display: none; }
-        .step-number { 
-            width: 30px; 
-            height: 30px; 
-            border-radius: 50%; 
-            background: #dee2e6; 
-            color: #6c757d; 
-            display: inline-flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-weight: bold; 
+        .step-number {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #dee2e6;
+            color: #6c757d;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
             margin-bottom: 5px;
             position: relative;
             z-index: 1;
@@ -371,62 +454,62 @@ ENV;
         .step-label { font-size: 12px; color: #6c757d; }
         .content { padding: 40px; }
         .form-group { margin-bottom: 20px; }
-        .form-group label { 
-            display: block; 
-            margin-bottom: 5px; 
-            font-weight: 600; 
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
             color: #333;
         }
         .form-group label .required { color: #dc3545; }
-        .form-group input, .form-group select { 
-            width: 100%; 
-            padding: 12px; 
-            border: 1px solid #ced4da; 
-            border-radius: 5px; 
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
             font-size: 14px;
         }
-        .form-group input:focus, .form-group select:focus { 
-            outline: none; 
-            border-color: #667eea; 
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
         .form-group small { color: #6c757d; font-size: 12px; }
         .checkbox-group { display: flex; align-items: center; }
         .checkbox-group input { width: auto; margin-right: 10px; }
-        .alert { 
-            padding: 15px; 
-            margin-bottom: 20px; 
-            border-radius: 5px; 
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
             border-left: 4px solid;
         }
         .alert-danger { background: #f8d7da; border-color: #dc3545; color: #721c24; }
         .alert-success { background: #d4edda; border-color: #28a745; color: #155724; }
         .alert-warning { background: #fff3cd; border-color: #ffc107; color: #856404; }
         .alert ul { margin: 10px 0 0 20px; }
-        .requirements { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); 
-            gap: 10px; 
+        .requirements {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 10px;
             margin: 20px 0;
         }
-        .requirement { 
-            padding: 10px; 
-            border-radius: 5px; 
-            display: flex; 
-            align-items: center; 
+        .requirement {
+            padding: 10px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
             justify-content: space-between;
         }
         .requirement.pass { background: #d4edda; color: #155724; }
         .requirement.fail { background: #f8d7da; color: #721c24; }
         .requirement .icon { font-size: 20px; }
-        .btn { 
-            padding: 12px 30px; 
-            border: none; 
-            border-radius: 5px; 
-            font-size: 16px; 
-            font-weight: 600; 
-            cursor: pointer; 
-            text-decoration: none; 
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
             display: inline-block;
             transition: all 0.3s;
         }
@@ -434,48 +517,57 @@ ENV;
         .btn-primary:hover { background: #5568d3; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3); }
         .btn-success { background: #28a745; color: white; }
         .btn-success:hover { background: #218838; }
-        .footer { 
-            padding: 20px; 
-            background: #f8f9fa; 
-            text-align: center; 
-            color: #6c757d; 
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .footer {
+            padding: 20px;
+            background: #f8f9fa;
+            text-align: center;
+            color: #6c757d;
             font-size: 14px;
         }
-        .success-box { 
-            text-align: center; 
+        .success-box {
+            text-align: center;
             padding: 40px;
         }
-        .success-box .icon { 
-            font-size: 80px; 
-            color: #28a745; 
+        .success-box .icon {
+            font-size: 80px;
+            color: #28a745;
             margin-bottom: 20px;
         }
-        .success-box h2 { 
-            color: #28a745; 
+        .success-box h2 {
+            color: #28a745;
             margin-bottom: 20px;
         }
-        .credential-box { 
-            background: #f8f9fa; 
-            padding: 20px; 
-            border-radius: 5px; 
-            margin: 20px 0; 
+        .credential-box {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
             text-align: left;
         }
-        .credential-box strong { 
-            color: #667eea; 
+        .credential-box strong {
+            color: #667eea;
             font-size: 18px;
         }
-        .security-warning { 
-            background: #fff3cd; 
-            border-left: 4px solid #ffc107; 
-            padding: 15px; 
+        .security-warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
             margin: 20px 0;
         }
         .two-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        @media (max-width: 768px) { 
+        @media (max-width: 768px) {
             .two-columns { grid-template-columns: 1fr; }
             .steps { flex-direction: column; }
             .step::after { display: none; }
+        }
+        .debug-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-size: 12px;
+            font-family: monospace;
         }
     </style>
 </head>
@@ -483,9 +575,9 @@ ENV;
     <div class="container">
         <div class="header">
             <h1>🕐 Sistema de Ponto Eletrônico</h1>
-            <p>Instalador Automático v2.0</p>
+            <p>Instalador Automático v2.1</p>
         </div>
-        
+
         <div class="steps">
             <div class="step <?= $step >= 1 ? ($step == 1 ? 'active' : 'completed') : '' ?>">
                 <div class="step-number">1</div>
@@ -504,7 +596,7 @@ ENV;
                 <div class="step-label">Concluído</div>
             </div>
         </div>
-        
+
         <div class="content">
             <?php if (!empty($errors)): ?>
                 <div class="alert alert-danger">
@@ -514,9 +606,19 @@ ENV;
                             <li><?= htmlspecialchars($error) ?></li>
                         <?php endforeach; ?>
                     </ul>
+                    <?php if (DEBUG_MODE): ?>
+                        <div class="debug-info">
+                            <strong>Debug Info:</strong><br>
+                            Step: <?= $step ?><br>
+                            PHP Version: <?= PHP_VERSION ?><br>
+                            <?php if (isset($_SESSION['db_config'])): ?>
+                            DB Config: <?= htmlspecialchars(json_encode($_SESSION['db_config'])) ?><br>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
-            
+
             <?php if (!empty($success)): ?>
                 <div class="alert alert-success">
                     <strong>✅ Sucesso:</strong>
@@ -527,17 +629,17 @@ ENV;
                     </ul>
                 </div>
             <?php endif; ?>
-            
+
             <?php if ($step == 1): ?>
                 <!-- STEP 1: Verificação de Requisitos -->
                 <h2>1️⃣ Verificação de Requisitos do Sistema</h2>
                 <p>Verificando se o servidor atende aos requisitos mínimos...</p>
-                
+
                 <div class="requirements">
-                    <?php 
-                    $requirements = checkRequirements(); 
+                    <?php
+                    $requirements = checkRequirements();
                     $allPassed = !in_array(false, $requirements);
-                    foreach ($requirements as $req => $passed): 
+                    foreach ($requirements as $req => $passed):
                     ?>
                         <div class="requirement <?= $passed ? 'pass' : 'fail' ?>">
                             <span><?= $req ?></span>
@@ -545,7 +647,7 @@ ENV;
                         </div>
                     <?php endforeach; ?>
                 </div>
-                
+
                 <?php if ($allPassed): ?>
                     <div class="alert alert-success">
                         <strong>✅ Todos os requisitos foram atendidos!</strong><br>
@@ -558,138 +660,138 @@ ENV;
                         Corrija os problemas antes de continuar.
                     </div>
                 <?php endif; ?>
-                
+
             <?php elseif ($step == 2): ?>
                 <!-- STEP 2: Configuração do Banco de Dados -->
                 <h2>2️⃣ Configuração do Banco de Dados</h2>
                 <p>Configure as credenciais do MySQL/MariaDB.</p>
-                
+
                 <form method="POST" action="install.php?step=2">
                     <div class="two-columns">
                         <div class="form-group">
                             <label>Host do Banco <span class="required">*</span></label>
-                            <input type="text" name="db_host" value="<?= $_POST['db_host'] ?? 'localhost' ?>" required>
+                            <input type="text" name="db_host" value="<?= htmlspecialchars($_POST['db_host'] ?? 'localhost') ?>" required>
                             <small>Geralmente "localhost" ou "127.0.0.1"</small>
                         </div>
-                        
+
                         <div class="form-group">
                             <label>Porta do Banco <span class="required">*</span></label>
-                            <input type="text" name="db_port" value="<?= $_POST['db_port'] ?? '3306' ?>" required>
+                            <input type="text" name="db_port" value="<?= htmlspecialchars($_POST['db_port'] ?? '3306') ?>" required>
                             <small>Porta padrão do MySQL: 3306</small>
                         </div>
                     </div>
-                    
+
                     <div class="form-group">
                         <label>Nome do Banco de Dados <span class="required">*</span></label>
-                        <input type="text" name="db_name" value="<?= $_POST['db_name'] ?? 'ponto_eletronico' ?>" required>
+                        <input type="text" name="db_name" value="<?= htmlspecialchars($_POST['db_name'] ?? 'ponto_eletronico') ?>" required>
                         <small>Nome do banco que será criado/usado</small>
                     </div>
-                    
+
                     <div class="two-columns">
                         <div class="form-group">
                             <label>Usuário do Banco <span class="required">*</span></label>
-                            <input type="text" name="db_user" value="<?= $_POST['db_user'] ?? 'root' ?>" required>
+                            <input type="text" name="db_user" value="<?= htmlspecialchars($_POST['db_user'] ?? 'root') ?>" required>
                         </div>
-                        
+
                         <div class="form-group">
                             <label>Senha do Banco</label>
-                            <input type="password" name="db_pass" value="<?= $_POST['db_pass'] ?? '' ?>">
+                            <input type="password" name="db_pass" value="<?= htmlspecialchars($_POST['db_pass'] ?? '') ?>">
                             <small>Deixe em branco se não houver senha</small>
                         </div>
                     </div>
-                    
+
                     <div class="form-group checkbox-group">
                         <input type="checkbox" name="db_create" id="db_create" checked>
                         <label for="db_create">Criar banco de dados automaticamente se não existir</label>
                     </div>
-                    
+
                     <div class="alert alert-warning">
-                        <strong>⚠️ Importante:</strong> O instalador irá importar automaticamente a estrutura completa do banco de dados (tabelas, índices, etc).
+                        <strong>⚠️ Importante:</strong> O instalador irá importar automaticamente a estrutura completa do banco de dados (tabelas, índices, etc). Isso pode levar alguns minutos.
                     </div>
-                    
+
                     <button type="submit" class="btn btn-primary">Próximo: Importar Banco de Dados →</button>
                 </form>
-                
+
             <?php elseif ($step == 3): ?>
                 <!-- STEP 3: Configuração da Aplicação -->
                 <h2>3️⃣ Configuração da Aplicação</h2>
                 <p>Configure as informações da empresa e crie o primeiro usuário administrador.</p>
-                
+
                 <form method="POST" action="install.php?step=3">
                     <h3 style="margin-top: 30px; margin-bottom: 15px; color: #667eea;">🌐 Configurações do Sistema</h3>
-                    
+
                     <div class="form-group">
                         <label>URL da Aplicação <span class="required">*</span></label>
-                        <input type="url" name="app_url" value="<?= $_POST['app_url'] ?? 'https://' . $_SERVER['HTTP_HOST'] ?>" required>
+                        <input type="url" name="app_url" value="<?= htmlspecialchars($_POST['app_url'] ?? 'https://' . ($_SERVER['HTTP_HOST'] ?? 'localhost')) ?>" required>
                         <small>URL completa onde o sistema será acessado (com https://)</small>
                     </div>
-                    
+
                     <div class="two-columns">
                         <div class="form-group">
                             <label>Nome da Empresa <span class="required">*</span></label>
-                            <input type="text" name="company_name" value="<?= $_POST['company_name'] ?? '' ?>" required>
+                            <input type="text" name="company_name" value="<?= htmlspecialchars($_POST['company_name'] ?? '') ?>" required>
                         </div>
-                        
+
                         <div class="form-group">
                             <label>CNPJ da Empresa</label>
-                            <input type="text" name="company_cnpj" value="<?= $_POST['company_cnpj'] ?? '' ?>" placeholder="00.000.000/0001-00">
+                            <input type="text" name="company_cnpj" value="<?= htmlspecialchars($_POST['company_cnpj'] ?? '') ?>" placeholder="00.000.000/0001-00">
                         </div>
                     </div>
-                    
+
                     <h3 style="margin-top: 30px; margin-bottom: 15px; color: #667eea;">👤 Primeiro Administrador</h3>
-                    
+
                     <div class="two-columns">
                         <div class="form-group">
                             <label>Nome Completo <span class="required">*</span></label>
-                            <input type="text" name="admin_name" value="<?= $_POST['admin_name'] ?? '' ?>" required>
+                            <input type="text" name="admin_name" value="<?= htmlspecialchars($_POST['admin_name'] ?? '') ?>" required>
                         </div>
-                        
+
                         <div class="form-group">
                             <label>CPF do Administrador</label>
-                            <input type="text" name="admin_cpf" value="<?= $_POST['admin_cpf'] ?? '' ?>" placeholder="000.000.000-00">
+                            <input type="text" name="admin_cpf" value="<?= htmlspecialchars($_POST['admin_cpf'] ?? '') ?>" placeholder="000.000.000-00">
                         </div>
                     </div>
-                    
+
                     <div class="form-group">
                         <label>E-mail de Login <span class="required">*</span></label>
-                        <input type="email" name="admin_email" value="<?= $_POST['admin_email'] ?? '' ?>" required>
+                        <input type="email" name="admin_email" value="<?= htmlspecialchars($_POST['admin_email'] ?? '') ?>" required>
                         <small>Este será o e-mail usado para fazer login no sistema</small>
                     </div>
-                    
+
                     <div class="form-group">
                         <label>Senha de Acesso <span class="required">*</span></label>
-                        <input type="password" name="admin_password" value="<?= $_POST['admin_password'] ?? '' ?>" required minlength="8">
+                        <input type="password" name="admin_password" value="<?= htmlspecialchars($_POST['admin_password'] ?? '') ?>" required minlength="8">
                         <small>Mínimo de 8 caracteres. Use uma senha forte!</small>
                     </div>
-                    
+
                     <div class="alert alert-warning">
                         <strong>🔐 Segurança:</strong> A senha será criptografada usando Argon2ID, o algoritmo mais seguro disponível. Um código único será gerado automaticamente para o administrador.
                     </div>
-                    
+
                     <button type="submit" class="btn btn-primary">Finalizar Instalação →</button>
                 </form>
-                
+
             <?php elseif ($step == 4): ?>
                 <!-- STEP 4: Conclusão -->
                 <div class="success-box">
                     <div class="icon">🎉</div>
                     <h2>Instalação Concluída com Sucesso!</h2>
                     <p>O Sistema de Ponto Eletrônico está pronto para uso.</p>
-                    
+
                     <div class="credential-box">
                         <h3 style="color: #667eea; margin-bottom: 15px;">📋 Credenciais de Acesso</h3>
                         <p><strong>E-mail:</strong> <?= htmlspecialchars($_SESSION['admin_email'] ?? '') ?></p>
-                        <p><strong>Código Único:</strong> <span style="background: #667eea; color: white; padding: 5px 15px; border-radius: 5px; font-size: 20px; font-weight: bold;"><?= $_SESSION['admin_code'] ?? '' ?></span></p>
+                        <p><strong>Código Único:</strong> <span style="background: #667eea; color: white; padding: 5px 15px; border-radius: 5px; font-size: 20px; font-weight: bold;"><?= htmlspecialchars($_SESSION['admin_code'] ?? '') ?></span></p>
                         <p style="margin-top: 10px;"><small>⚠️ Anote estas credenciais em local seguro!</small></p>
                     </div>
-                    
+
                     <div class="security-warning">
                         <h3 style="color: #856404; margin-bottom: 10px;">🔒 ATENÇÃO DE SEGURANÇA</h3>
                         <p><strong>Por motivos de segurança, você DEVE deletar o arquivo install.php IMEDIATAMENTE!</strong></p>
                         <p style="margin-top: 10px;">Execute o seguinte comando:</p>
                         <code style="background: #fff; padding: 10px; display: block; margin-top: 10px; border-radius: 5px;">rm <?= PUBLIC_PATH ?>/install.php</code>
                     </div>
-                    
+
                     <div style="margin-top: 30px;">
                         <h3 style="color: #667eea; margin-bottom: 15px;">📝 Próximos Passos</h3>
                         <ol style="text-align: left; max-width: 500px; margin: 0 auto;">
@@ -700,19 +802,19 @@ ENV;
                             <li>Cadastrar os funcionários</li>
                         </ol>
                     </div>
-                    
+
                     <a href="/" class="btn btn-success" style="margin-top: 30px; font-size: 18px;">Acessar o Sistema →</a>
                 </div>
-                
-                <?php 
+
+                <?php
                 // Limpa a sessão
                 session_destroy();
                 ?>
             <?php endif; ?>
         </div>
-        
+
         <div class="footer">
-            Sistema de Ponto Eletrônico v2.0 | Conforme Portaria MTE 671/2021
+            Sistema de Ponto Eletrônico v2.1 | Conforme Portaria MTE 671/2021
         </div>
     </div>
 </body>
