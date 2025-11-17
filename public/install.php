@@ -251,7 +251,11 @@ function runMigrations() {
 
     $sqlFile = __DIR__ . '/database.sql';
     if (!file_exists($sqlFile)) {
-        throw new Exception("Arquivo database.sql não encontrado em public/");
+        // Try alternative location
+        $sqlFile = __DIR__ . '/../database.sql';
+        if (!file_exists($sqlFile)) {
+            throw new Exception("Arquivo database.sql não encontrado. Execute 'php spark migrate --all' manualmente via SSH.");
+        }
     }
 
     // Read SQL file
@@ -427,12 +431,19 @@ function createAdminUser() {
     $pdo = new PDO($dsn, $_SESSION['db_user'], $_SESSION['db_pass']);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    // Use Argon2id for password hashing (more secure than bcrypt)
-    $hashedPassword = password_hash($_SESSION['admin_password'], PASSWORD_ARGON2ID, [
-        'memory_cost' => 65536,  // 64 MB
-        'time_cost' => 4,
-        'threads' => 2
-    ]);
+    // Use Argon2id if available, otherwise use default (bcrypt)
+    if (defined('PASSWORD_ARGON2ID')) {
+        $hashedPassword = password_hash($_SESSION['admin_password'], PASSWORD_ARGON2ID, [
+            'memory_cost' => 65536,  // 64 MB
+            'time_cost' => 4,
+            'threads' => 2
+        ]);
+    } else {
+        // Fallback to bcrypt for shared hosting compatibility
+        $hashedPassword = password_hash($_SESSION['admin_password'], PASSWORD_DEFAULT, [
+            'cost' => 12
+        ]);
+    }
 
     $uniqueCode = 'ADM' . str_pad(1, 5, '0', STR_PAD_LEFT); // ADM00001 = 8 chars
 
@@ -570,6 +581,17 @@ function createAdminUser() {
                         $loaded = extension_loaded($ext);
                         echo '<li class="' . ($loaded ? 'ok' : 'error') . '">Extensão: ' . $ext . '</li>';
                     }
+
+                    // Optional extensions (warnings only)
+                    $optionalExt = ['sodium', 'redis'];
+                    foreach ($optionalExt as $ext) {
+                        $loaded = extension_loaded($ext);
+                        echo '<li class="' . ($loaded ? 'ok' : 'warning') . '">Extensão (opcional): ' . $ext . ($loaded ? '' : ' - Recomendado mas não obrigatório') . '</li>';
+                    }
+
+                    // Password hashing support
+                    $argon2Available = defined('PASSWORD_ARGON2ID');
+                    echo '<li class="' . ($argon2Available ? 'ok' : 'warning') . '">Argon2id Password Hashing' . ($argon2Available ? '' : ' - Usando bcrypt como alternativa') . '</li>';
 
                     // Writable directories
                     $dirs = ['../writable', '../writable/cache', '../writable/logs', '../writable/session'];
