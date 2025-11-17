@@ -63,6 +63,9 @@ writable/uploads/*
 
 writable/debugbar/*
 
+# Public writable directory (sessions created at runtime)
+public/writable/*
+
 php_errors.log
 
 #-------------------------
