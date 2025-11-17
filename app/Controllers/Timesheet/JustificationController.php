@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Controllers;
+namespace App\Controllers\Timesheet;
 
 use App\Controllers\BaseController;
 use App\Models\JustificationModel;

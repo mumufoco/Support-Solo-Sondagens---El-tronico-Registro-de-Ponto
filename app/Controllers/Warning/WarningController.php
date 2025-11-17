@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Controllers;
+namespace App\Controllers\Warning;
 
 use App\Controllers\BaseController;
 use App\Models\EmployeeModel;
