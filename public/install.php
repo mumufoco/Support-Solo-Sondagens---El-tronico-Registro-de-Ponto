@@ -37,6 +37,9 @@ if (file_exists(__DIR__ . '/../writable/installed.lock')) {
     ');
 }
 
+// Start output buffering to prevent "headers already sent" errors
+ob_start();
+
 // Start session
 session_start();
 
@@ -117,8 +120,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     file_put_contents(__DIR__ . '/../writable/installed.lock', date('Y-m-d H:i:s'));
                     $_SESSION['install_log'][] = "✓ Arquivo de proteção criado";
 
+                    $_SESSION['installation_complete'] = true;
                     $success = "Instalação concluída com sucesso!";
-                    header('Location: install.php?step=5');
+
+                    // Clear output buffer and redirect
+                    ob_end_clean();
+
+                    // Try header redirect (METHOD 1)
+                    if (!headers_sent()) {
+                        header('Location: install.php?step=5');
+                        exit;
+                    }
+
+                    // Fallback: Meta refresh + JavaScript (METHOD 2 & 3)
+                    echo '<!DOCTYPE html><html><head>';
+                    echo '<meta http-equiv="refresh" content="0;url=install.php?step=5">';
+                    echo '</head><body>';
+                    echo '<p>Redirecionando... <a href="install.php?step=5">Clique aqui se não for redirecionado automaticamente</a></p>';
+                    echo '<script>window.location.href="install.php?step=5";</script>';
+                    echo '</body></html>';
                     exit;
                 } catch (Exception $e) {
                     $error = "Erro na instalação: " . $e->getMessage();
@@ -685,6 +705,15 @@ function createAdminUser() {
                     break;
 
                 case '5': // Completion
+                    // Security: Only show completion if installation was actually completed
+                    if (!isset($_SESSION['installation_complete']) || $_SESSION['installation_complete'] !== true) {
+                        echo '<div class="alert alert-error">';
+                        echo 'Acesso inválido! A instalação não foi concluída.';
+                        echo '</div>';
+                        echo '<a href="install.php?step=1" class="btn">Voltar ao Início</a>';
+                        break;
+                    }
+
                     echo '<h2>✓ Instalação Concluída com Sucesso!</h2>';
                     echo '<p style="font-size: 16px; color: #27ae60;">Parabéns! Seu Sistema de Ponto Eletrônico está pronto para uso.</p>';
 
@@ -771,3 +800,9 @@ function createAdminUser() {
     </div>
 </body>
 </html>
+<?php
+// Flush output buffer
+if (ob_get_level() > 0) {
+    ob_end_flush();
+}
+?>
