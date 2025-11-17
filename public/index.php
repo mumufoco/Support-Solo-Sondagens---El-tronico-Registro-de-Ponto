@@ -47,6 +47,11 @@ if (file_exists(__DIR__ . '/php-config-production.php')) {
     require __DIR__ . '/php-config-production.php';
 }
 
+// Load exception classes before Boot (fixes InvalidArgumentException error)
+if (file_exists(__DIR__ . '/bootstrap-exceptions.php')) {
+    require __DIR__ . '/bootstrap-exceptions.php';
+}
+
 /*
  *---------------------------------------------------------------
  * SET THE CURRENT DIRECTORY
