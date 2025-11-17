@@ -75,7 +75,7 @@ $routes->group('justifications', ['filter' => 'auth'], static function ($routes)
  * Employee Routes (Manager and Admin only)
  * --------------------------------------------------------------------
  */
-$routes->group('employees', ['filter' => 'auth|manager'], static function ($routes) {
+$routes->group('employees', ['filter' => ['auth', 'manager']], static function ($routes) {
     $routes->get('/', 'Employee\EmployeeController::index');
     $routes->get('create', 'Employee\EmployeeController::create');
     $routes->post('store', 'Employee\EmployeeController::store');
@@ -93,7 +93,7 @@ $routes->group('employees', ['filter' => 'auth|manager'], static function ($rout
  * Biometric Routes
  * --------------------------------------------------------------------
  */
-$routes->group('biometric', ['filter' => 'auth|manager'], static function ($routes) {
+$routes->group('biometric', ['filter' => ['auth', 'manager']], static function ($routes) {
     // Face recognition
     $routes->get('face/enroll/(:num)', 'Biometric\FaceRecognitionController::enroll/$1');
     $routes->post('face/enroll', 'Biometric\FaceRecognitionController::store');
@@ -111,7 +111,7 @@ $routes->group('biometric', ['filter' => 'auth|manager'], static function ($rout
  * Geofence Routes (Admin only)
  * --------------------------------------------------------------------
  */
-$routes->group('geofence', ['filter' => 'auth|admin'], static function ($routes) {
+$routes->group('geofence', ['filter' => ['auth', 'admin']], static function ($routes) {
     $routes->get('/', 'Geolocation\GeofenceController::index');
     $routes->get('map', 'Geolocation\GeofenceController::map');
     $routes->post('store', 'Geolocation\GeofenceController::store');
@@ -171,7 +171,7 @@ $routes->group('chat', ['filter' => 'auth'], static function ($routes) {
  * Warning Routes (Manager and Admin only)
  * --------------------------------------------------------------------
  */
-$routes->group('warnings', ['filter' => 'auth|manager'], static function ($routes) {
+$routes->group('warnings', ['filter' => ['auth', 'manager']], static function ($routes) {
     $routes->get('/', 'Warning\WarningController::index');
     $routes->get('create', 'Warning\WarningController::create');
     $routes->post('store', 'Warning\WarningController::store');
@@ -199,7 +199,7 @@ $routes->group('lgpd', ['filter' => 'auth'], static function ($routes) {
  * Settings Routes (Admin only)
  * --------------------------------------------------------------------
  */
-$routes->group('settings', ['filter' => 'auth|admin'], static function ($routes) {
+$routes->group('settings', ['filter' => ['auth', 'admin']], static function ($routes) {
     $routes->get('/', 'Setting\SettingController::index');
     $routes->post('update', 'Setting\SettingController::update');
 
