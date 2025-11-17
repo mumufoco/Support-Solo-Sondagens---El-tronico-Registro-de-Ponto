@@ -37,7 +37,7 @@ class Paths
      * for maximum security, keeping it out of the app and/or
      * system directories.
      */
-    public string $writableDirectory = __DIR__ . '/../../storage';
+    public string $writableDirectory = __DIR__ . '/../../writable';
 
     /**
      * TESTS DIRECTORY NAME
