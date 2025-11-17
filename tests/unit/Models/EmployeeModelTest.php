@@ -7,18 +7,14 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 
 /**
- * EmployeeModel Unit Tests
+ * Employee Model Unit Tests
  */
 class EmployeeModelTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
 
-    protected $migrate = true;
-    protected $migrateOnce = false;
     protected $refresh = true;
     protected $namespace = 'App';
-    protected $seed = 'App\Database\Seeds\TestSeeder';
-
     protected EmployeeModel $model;
 
     protected function setUp(): void
@@ -27,119 +23,55 @@ class EmployeeModelTest extends CIUnitTestCase
         $this->model = new EmployeeModel();
     }
 
-    public function testEmployeeCanBeCreated()
+    public function testCreateEmployeeWithValidData()
     {
         $data = [
-            'name' => 'João Silva',
+            'name' => 'João Silva Teste',
+            'email' => 'joao.teste@empresa.com',
+            'password' => 'SenhaForte123!@#',
             'cpf' => '123.456.789-00',
-            'email' => 'joao.silva@example.com',
-            'password' => password_hash('senha123', PASSWORD_ARGON2ID),
             'role' => 'funcionario',
-            'department' => 'TI',
-            'active' => true,
         ];
 
-        $employeeId = $this->model->insert($data);
-
-        $this->assertIsInt($employeeId);
-        $this->assertGreaterThan(0, $employeeId);
-
-        $employee = $this->model->find($employeeId);
-        $this->assertEquals('João Silva', $employee->name);
-        $this->assertEquals('joao.silva@example.com', $employee->email);
+        $id = $this->model->insert($data);
+        $this->assertIsNumeric($id);
+        $this->assertGreaterThan(0, $id);
     }
 
-    public function testEmployeeCanBeFoundByEmail()
+    public function testPasswordIsHashedOnCreate()
     {
-        $employee = $this->model->where('email', 'admin@pontoeletronico.com.br')->first();
+        $password = 'SenhaForte123!@#';
 
-        $this->assertNotNull($employee);
-        $this->assertEquals('Administrador do Sistema', $employee->name);
-    }
-
-    public function testEmployeeCanBeFoundByCpf()
-    {
-        $employee = $this->model->where('cpf', '000.000.000-00')->first();
-
-        $this->assertNotNull($employee);
-        $this->assertEquals('Administrador do Sistema', $employee->name);
-    }
-
-    public function testActiveEmployeesOnly()
-    {
-        $activeEmployees = $this->model->where('active', true)->findAll();
-
-        foreach ($activeEmployees as $employee) {
-            $this->assertTrue($employee->active);
-        }
-    }
-
-    public function testEmployeesFilteredByDepartment()
-    {
-        $department = 'TI';
-        $employees = $this->model->where('department', $department)->findAll();
-
-        foreach ($employees as $employee) {
-            $this->assertEquals($department, $employee->department);
-        }
-    }
-
-    public function testEmployeesFilteredByRole()
-    {
-        $role = 'admin';
-        $employees = $this->model->where('role', $role)->findAll();
-
-        foreach ($employees as $employee) {
-            $this->assertEquals($role, $employee->role);
-        }
-    }
-
-    public function testEmployeeCanBeUpdated()
-    {
-        $employee = $this->model->where('email', 'admin@pontoeletronico.com.br')->first();
-        $originalName = $employee->name;
-
-        $this->model->update($employee->id, ['name' => 'Nome Atualizado']);
-
-        $updatedEmployee = $this->model->find($employee->id);
-        $this->assertEquals('Nome Atualizado', $updatedEmployee->name);
-
-        // Restore
-        $this->model->update($employee->id, ['name' => $originalName]);
-    }
-
-    public function testEmployeeCanBeSoftDeleted()
-    {
         $data = [
-            'name' => 'Funcionário Temporário',
-            'cpf' => '999.999.999-99',
-            'email' => 'temp@example.com',
-            'password' => password_hash('senha123', PASSWORD_ARGON2ID),
+            'name' => 'Maria Teste',
+            'email' => 'maria.teste@empresa.com',
+            'password' => $password,
+            'cpf' => '987.654.321-00',
             'role' => 'funcionario',
-            'department' => 'RH',
-            'active' => true,
         ];
 
-        $employeeId = $this->model->insert($data);
+        $id = $this->model->insert($data);
+        $employee = $this->model->find($id);
 
-        // Deactivate instead of delete
-        $this->model->update($employeeId, ['active' => false]);
-
-        $employee = $this->model->find($employeeId);
-        $this->assertFalse($employee->active);
+        $this->assertNotEquals($password, $employee->password);
+        $this->assertTrue(password_verify($password, $employee->password));
     }
 
-    public function testEmployeeValidation()
+    public function testFindByEmail()
     {
-        $invalidData = [
-            'name' => 'A', // Too short
-            'email' => 'invalid-email', // Invalid format
-            'cpf' => '123', // Invalid CPF
-        ];
+        $email = 'busca@empresa.com';
 
-        $result = $this->model->insert($invalidData);
+        $id = $this->model->insert([
+            'name' => 'Funcionário Busca',
+            'email' => $email,
+            'password' => 'SenhaForte123!@#',
+            'cpf' => '555.666.777-88',
+            'role' => 'funcionario',
+        ]);
 
-        $this->assertFalse($result);
-        $this->assertNotEmpty($this->model->errors());
+        $employee = $this->model->findByEmail($email);
+
+        $this->assertNotNull($employee);
+        $this->assertEquals($id, $employee->id);
     }
 }

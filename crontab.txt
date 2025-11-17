@@ -1,0 +1,68 @@
+# ============================================================================
+# CRONTAB - Sistema de Ponto Eletrônico
+# ============================================================================
+#
+# Instalação:
+# 1. Edite este arquivo e ajuste os caminhos para seu servidor
+# 2. Execute: crontab crontab.txt
+# 3. Verifique: crontab -l
+#
+# IMPORTANTE: Ajuste o caminho /home/supportson/public_html/ponto para o caminho correto do seu projeto
+# ============================================================================
+
+# Caminho do projeto (AJUSTAR CONFORME SEU SERVIDOR)
+# PROJECT_PATH=/home/supportson/public_html/ponto
+
+# ============================================================================
+# BACKUPS
+# ============================================================================
+
+# Backup diário do banco de dados (todo dia às 02:00 AM)
+0 2 * * * cd /home/supportson/public_html/ponto && php spark backup:database >> /home/supportson/public_html/ponto/writable/logs/backup-$(date +\%Y-\%m-\%d).log 2>&1
+
+# Limpeza de backups antigos (todo domingo às 03:00 AM)
+0 3 * * 0 cd /home/supportson/public_html/ponto && php spark backup:database --clean >> /home/supportson/public_html/ponto/writable/logs/backup-cleanup.log 2>&1
+
+# ============================================================================
+# MONITORAMENTO DE LOGS
+# ============================================================================
+
+# Monitorar logs a cada 5 minutos
+*/5 * * * * cd /home/supportson/public_html/ponto && php spark monitor:logs >> /home/supportson/public_html/ponto/writable/logs/monitor.log 2>&1
+
+# Limpeza de logs antigos (todo dia às 04:00 AM)
+0 4 * * * cd /home/supportson/public_html/ponto && php spark monitor:logs --clean >> /home/supportson/public_html/ponto/writable/logs/log-cleanup.log 2>&1
+
+# Relatório semanal de logs (toda segunda-feira às 08:00 AM)
+0 8 * * 1 cd /home/supportson/public_html/ponto && php spark monitor:logs --report >> /home/supportson/public_html/ponto/writable/logs/weekly-report-$(date +\%Y-\%m-\%d).log 2>&1
+
+# ============================================================================
+# LIMPEZA E MANUTENÇÃO
+# ============================================================================
+
+# Limpar cache de sessões expiradas (a cada hora)
+0 * * * * cd /home/supportson/public_html/ponto && php spark cache:clear >> /home/supportson/public_html/ponto/writable/logs/cache-clean.log 2>&1
+
+# Otimizar tabelas do banco (todo domingo às 05:00 AM)
+# 0 5 * * 0 cd /home/supportson/public_html/ponto && php spark db:optimize >> /home/supportson/public_html/ponto/writable/logs/db-optimize.log 2>&1
+
+# ============================================================================
+# NOTAS
+# ============================================================================
+#
+# Formato do Crontab:
+# * * * * * comando
+# │ │ │ │ │
+# │ │ │ │ └─── Dia da semana (0-7, 0=Domingo)
+# │ │ │ └───── Mês (1-12)
+# │ │ └─────── Dia do mês (1-31)
+# │ └───────── Hora (0-23)
+# └─────────── Minuto (0-59)
+#
+# Exemplos:
+# */5 * * * *    - A cada 5 minutos
+# 0 2 * * *      - Todo dia às 02:00 AM
+# 0 2 * * 1      - Toda segunda-feira às 02:00 AM
+# 0 0 1 * *      - Primeiro dia de cada mês à meia-noite
+#
+# ============================================================================
