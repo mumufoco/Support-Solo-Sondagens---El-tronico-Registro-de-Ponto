@@ -10,10 +10,10 @@
         "codeigniter4/shield": "^1.0",
         "firebase/php-jwt": "*",
         "guzzlehttp/guzzle": "^7.8",
-        "minishlink/web-push": "^8.0",
+        "minishlink/web-push": "^9.0",
         "phpoffice/phpspreadsheet": "^1.29",
         "tecnickcom/tcpdf": "^6.6",
-        "workerman/workerman": "^4.0"
+        "workerman/workerman": "^5.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",

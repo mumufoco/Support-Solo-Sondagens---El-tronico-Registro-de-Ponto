@@ -84,7 +84,7 @@ class App extends BaseConfig
     /**
      * Force Global Secure Requests
      */
-    public bool $forceGlobalSecureRequests = false;
+    public bool $forceGlobalSecureRequests = true;
 
     /**
      * Session Variables
