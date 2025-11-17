@@ -44,10 +44,10 @@ class CreateEmployeesTable extends Migration
                 'comment'    => 'Código único para registro de ponto',
             ],
             'role' => [
-                'type'       => 'ENUM',
-                'constraint' => ['admin', 'gestor', 'funcionario'],
+                'type'       => 'VARCHAR',
+                'constraint' => '20',
                 'default'    => 'funcionario',
-                'comment'    => 'Perfil de acesso',
+                'comment'    => 'Perfil de acesso: admin, gestor, funcionario',
             ],
             'department' => [
                 'type'       => 'VARCHAR',
@@ -79,7 +79,7 @@ class CreateEmployeesTable extends Migration
             ],
             'active' => [
                 'type'       => 'BOOLEAN',
-                'default'    => true,
+                'default'    => 1,
                 'comment'    => 'Funcionário ativo no sistema',
             ],
             'extra_hours_balance' => [
