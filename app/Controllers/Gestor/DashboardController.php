@@ -63,7 +63,7 @@ class DashboardController extends BaseController
 
         $justificationModel->update($id, [
             'status' => 'approved',
-            'approved_by' => auth()->id(),
+            'approved_by' => session()->get('employee_id'),
             'approved_at' => date('Y-m-d H:i:s'),
         ]);
 
@@ -89,7 +89,7 @@ class DashboardController extends BaseController
 
         $justificationModel->update($id, [
             'status' => 'rejected',
-            'approved_by' => auth()->id(),
+            'approved_by' => session()->get('employee_id'),
             'approved_at' => date('Y-m-d H:i:s'),
         ]);
 
@@ -168,7 +168,7 @@ class DashboardController extends BaseController
             $auditModel = new AuditLogModel();
 
             $auditModel->insert([
-                'user_id' => auth()->id(),
+                'user_id' => session()->get('employee_id'),
                 'action' => $action,
                 'description' => $description,
                 'ip_address' => $this->request->getIPAddress(),

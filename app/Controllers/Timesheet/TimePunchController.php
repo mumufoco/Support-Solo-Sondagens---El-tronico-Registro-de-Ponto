@@ -439,8 +439,8 @@ class TimePunchController extends BaseController
             'punch_time'    => date('Y-m-d H:i:s'),
             'punch_type'    => $punchType,
             'method'        => $method,
-            'latitude'      => $latitude,
-            'longitude'     => $longitude,
+            'latitude'      => $locationLat,
+            'longitude'     => $locationLng,
             'ip_address'    => $this->getClientIp(),
             'user_agent'    => $this->getUserAgent(),
         ];
