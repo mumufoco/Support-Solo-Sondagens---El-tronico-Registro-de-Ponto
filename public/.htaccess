@@ -1,0 +1,37 @@
+# CodeIgniter 4 - Public Folder .htaccess
+
+# Disable directory browsing
+Options -Indexes
+
+# Set default index file
+DirectoryIndex index.php index.html
+
+# Enable rewrite engine
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Redirect trailing slashes
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)/$ /$1 [L,R=301]
+
+    # Rewrite requests to index.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php/$1 [L]
+</IfModule>
+
+# Deny access to sensitive files
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "(^composer\.|^phpunit\.|\.env$)">
+    Require all denied
+</FilesMatch>
+
+# PHP settings
+<IfModule mod_php.c>
+    php_flag display_errors Off
+    php_value upload_max_filesize 64M
+    php_value post_max_size 64M
+</IfModule>

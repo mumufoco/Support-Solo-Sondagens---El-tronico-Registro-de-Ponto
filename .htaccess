@@ -3,6 +3,9 @@
 # Sistema de Ponto Eletrônico
 # =========================================
 
+# Disable directory browsing
+Options -Indexes
+
 # CRITICAL FIX: Disable zlib.output_compression
 # This prevents conflict with CodeIgniter's output buffering
 <IfModule mod_php.c>
