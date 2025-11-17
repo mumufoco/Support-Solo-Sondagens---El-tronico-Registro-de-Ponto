@@ -37,6 +37,29 @@ if (version_compare(PHP_VERSION, $minPhpVersion, '<')) {
 
 /*
  *---------------------------------------------------------------
+ * DEFINE ENVIRONMENT CONSTANT EARLY
+ *---------------------------------------------------------------
+ */
+
+// Define ENVIRONMENT constant before anything else to prevent "Undefined constant" errors
+// This is normally done by Boot.php, but we need it earlier for error handling
+if (!defined('ENVIRONMENT')) {
+    // Try to load from .env file
+    $envFile = __DIR__ . '/../.env';
+    $environment = 'production'; // Default to production for safety
+
+    if (file_exists($envFile)) {
+        $envContent = file_get_contents($envFile);
+        if (preg_match('/^\s*CI_ENVIRONMENT\s*=\s*["\']?(\w+)["\']?\s*$/m', $envContent, $matches)) {
+            $environment = $matches[1];
+        }
+    }
+
+    define('ENVIRONMENT', $environment);
+}
+
+/*
+ *---------------------------------------------------------------
  * LOAD PRODUCTION PHP CONFIGURATION
  *---------------------------------------------------------------
  */
