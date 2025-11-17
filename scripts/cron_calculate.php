@@ -11,13 +11,37 @@
  * 30 0 * * * /usr/bin/php /path/to/scripts/cron_calculate.php >> /var/log/ponto/cron_calculate.log 2>&1
  */
 
+use CodeIgniter\Boot;
+use Config\Paths;
+
 // Load CodeIgniter
 define('FCPATH', dirname(__DIR__) . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR);
 chdir(dirname(__DIR__));
 
+require_once __DIR__ . '/../vendor/autoload.php';
 require FCPATH . '../app/Config/Paths.php';
-$paths = new Config\Paths();
-require $paths->systemDirectory . '/bootstrap.php';
+$paths = new Paths();
+
+// Define path constants
+define('APPPATH', realpath(FCPATH . '../app') . DIRECTORY_SEPARATOR);
+define('ROOTPATH', realpath(APPPATH . '../') . DIRECTORY_SEPARATOR);
+define('SYSTEMPATH', realpath($paths->systemDirectory) . DIRECTORY_SEPARATOR);
+define('WRITEPATH', realpath($paths->writableDirectory) . DIRECTORY_SEPARATOR);
+
+// Load .env file
+require_once SYSTEMPATH . 'Config/DotEnv.php';
+$dotenv = new \CodeIgniter\Config\DotEnv(ROOTPATH);
+$dotenv->load();
+
+// Define environment
+if (!defined('ENVIRONMENT')) {
+    $env = $_ENV['CI_ENVIRONMENT'] ?? $_SERVER['CI_ENVIRONMENT'] ?? getenv('CI_ENVIRONMENT') ?: 'production';
+    define('ENVIRONMENT', $env);
+}
+
+// Bootstrap CodeIgniter for console
+require $paths->systemDirectory . '/Boot.php';
+Boot::bootConsole($paths);
 
 // Load database
 $db = \Config\Database::connect();

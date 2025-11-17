@@ -1,0 +1,397 @@
+openapi: 3.0.3
+info:
+  title: API Sistema de Ponto Eletrônico
+  description: |
+    API RESTful para o Sistema de Ponto Eletrônico Brasileiro
+    
+    Conformidade: MTE Portaria 671/2021, CLT, LGPD
+    
+    ## Autenticação
+    A API utiliza Bearer Token (JWT) para autenticação.
+    Inclua o token no header: `Authorization: Bearer <token>`
+    
+    ## Rate Limiting
+    - API: 60 requisições/minuto
+    - Login: 5 tentativas/5 minutos
+    - Punch: 10 requisições/minuto
+    
+  version: 1.0.0
+  contact:
+    name: Support Solo Sondagens LTDA
+    email: admin@supportsondagens.com.br
+    url: https://ponto.supportsondagens.com.br
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://ponto.supportsondagens.com.br/api
+    description: Servidor de Produção
+  - url: http://localhost/api
+    description: Servidor de Desenvolvimento
+
+tags:
+  - name: Authentication
+    description: Endpoints de autenticação
+  - name: Employees
+    description: Gerenciamento de funcionários
+  - name: Time Punch
+    description: Registro de ponto
+  - name: Dashboard
+    description: Dados do dashboard
+  - name: Notifications
+    description: Notificações push
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Autenticar usuário
+      description: Realiza login e retorna token JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: funcionario@empresa.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 12
+                  example: SenhaForte123!@#
+      responses:
+        '200':
+          description: Login bem-sucedido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  user:
+                    $ref: '#/components/schemas/Employee'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /employees:
+    get:
+      tags:
+        - Employees
+      summary: Listar funcionários
+      description: Retorna lista de funcionários (requer permissão admin ou gestor)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Lista de funcionários
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Employee'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /employees/{id}:
+    get:
+      tags:
+        - Employees
+      summary: Buscar funcionário
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Dados do funcionário
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Employee'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /punch:
+    post:
+      tags:
+        - Time Punch
+      summary: Registrar ponto
+      description: Registra entrada/saída do funcionário
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+              properties:
+                type:
+                  type: string
+                  enum: [entrada, saida, pausa_inicio, pausa_fim]
+                  example: entrada
+                latitude:
+                  type: number
+                  format: double
+                  example: -23.5505199
+                longitude:
+                  type: number
+                  format: double
+                  example: -46.6333094
+                photo:
+                  type: string
+                  format: base64
+                  description: Foto facial (base64)
+                fingerprint:
+                  type: string
+                  description: Template biométrico
+      responses:
+        '201':
+          description: Ponto registrado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/TimePunch'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /dashboard/stats:
+    get:
+      tags:
+        - Dashboard
+      summary: Estatísticas do dashboard
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Estatísticas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      total_employees:
+                        type: integer
+                      active_today:
+                        type: integer
+                      pending_approvals:
+                        type: integer
+                      hours_worked_today:
+                        type: number
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Employee:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: João Silva
+        email:
+          type: string
+          format: email
+          example: joao.silva@empresa.com
+        cpf:
+          type: string
+          example: 123.456.789-00
+        unique_code:
+          type: string
+          example: ABC12345
+        role:
+          type: string
+          enum: [admin, gestor, funcionario]
+          example: funcionario
+        department:
+          type: string
+          example: TI
+        position:
+          type: string
+          example: Desenvolvedor
+        active:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TimePunch:
+      type: object
+      properties:
+        id:
+          type: integer
+        employee_id:
+          type: integer
+        type:
+          type: string
+          enum: [entrada, saida, pausa_inicio, pausa_fim]
+        timestamp:
+          type: string
+          format: date-time
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        method:
+          type: string
+          enum: [web, app, biometric]
+        created_at:
+          type: string
+          format: date-time
+
+    Pagination:
+      type: object
+      properties:
+        current_page:
+          type: integer
+        total_pages:
+          type: integer
+        total_items:
+          type: integer
+        items_per_page:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: Mensagem de erro
+
+  responses:
+    Unauthorized:
+      description: Não autenticado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: Token inválido ou expirado
+
+    Forbidden:
+      description: Acesso negado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: Você não tem permissão para acessar este recurso
+
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: Recurso não encontrado
+
+    BadRequest:
+      description: Requisição inválida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: Dados inválidos
+
+    RateLimited:
+      description: Limite de requisições excedido
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error: Muitas requisições. Tente novamente mais tarde.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Segundos até poder tentar novamente

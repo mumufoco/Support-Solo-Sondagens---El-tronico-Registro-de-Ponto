@@ -42,6 +42,7 @@ $RECYCLE.BIN/
 # These should never be under version control,
 # as it poses a security risk of exposing sensitive information.
 .env
+.env.backup*
 .vagrant
 Vagrantfile
 
@@ -84,8 +85,8 @@ phpunit
 #-------------------------
 # Composer
 #-------------------------
-vendor/
-composer.lock
+# NOTE: vendor/ and composer.lock are tracked in this project
+# to ensure consistent dependencies across all environments
 composer.phar
 .composer/
 
@@ -158,24 +159,21 @@ storage/logs/*
 #-------------------------
 # DeepFace API (Python)
 #-------------------------
-deepface-api/venv/
+# NOTE: Python dependencies are now tracked for deployment consistency
+# venv/ can be recreated with: python -m venv venv && pip install -r requirements.txt
 deepface-api/__pycache__/
 deepface-api/*.pyc
-deepface-api/.pytest_cache/
-deepface-api/logs/*
-!deepface-api/logs/.gitkeep
 
-# DeepFace models cache
+# DeepFace models cache (large ML models - downloaded on demand)
 .deepface/
 
 #-------------------------
-# Node Modules
+# Node Modules & JavaScript
 #-------------------------
-node_modules/
+# NOTE: Node dependencies are now tracked for deployment consistency
+# If node_modules becomes too large, reconsider this approach
 npm-debug.log
 yarn-error.log
-package-lock.json
-yarn.lock
 
 #-------------------------
 # Assets Build

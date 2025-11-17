@@ -1,0 +1,83 @@
+# =========================================
+# .htaccess for CodeIgniter 4
+# Sistema de Ponto Eletrônico
+# =========================================
+
+# Disable directory browsing
+Options -Indexes
+
+# CRITICAL FIX: Disable zlib.output_compression
+# This prevents conflict with CodeIgniter's output buffering
+<IfModule mod_php.c>
+    php_flag zlib.output_compression Off
+    php_value output_buffering 4096
+    php_value max_execution_time 300
+    php_value memory_limit 256M
+    php_value post_max_size 64M
+    php_value upload_max_filesize 64M
+
+    # Session garbage collector configuration (fix "gc_divisor must be greater than 0")
+    php_value session.gc_probability 1
+    php_value session.gc_divisor 100
+    php_value session.gc_maxlifetime 7200
+</IfModule>
+
+# For PHP-FPM (CGI/FastCGI)
+<IfModule mod_fcgid.c>
+    FcgidInitialEnv zlib.output_compression Off
+</IfModule>
+
+# =========================================
+# Rewrite Engine Configuration
+# =========================================
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Redirect to public folder
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+# =========================================
+# Security Headers
+# =========================================
+
+<IfModule mod_headers.c>
+    # Prevent clickjacking
+    Header always set X-Frame-Options "SAMEORIGIN"
+
+    # Prevent MIME-sniffing
+    Header always set X-Content-Type-Options "nosniff"
+
+    # XSS Protection
+    Header always set X-XSS-Protection "1; mode=block"
+
+    # Referrer Policy
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # Remove X-Powered-By header
+    Header unset X-Powered-By
+    Header always unset X-Powered-By
+</IfModule>
+
+# =========================================
+# File Access Protection
+# =========================================
+
+# Deny access to sensitive files
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Deny access to .ini files
+<FilesMatch "\.(ini|env)$">
+    Require all denied
+</FilesMatch>
+
+# Deny access to configuration and system files
+<FilesMatch "(^composer\.(json|lock)$|^package(-lock)?\.json$|^phpunit\.xml|^\.gitignore)">
+    Require all denied
+</FilesMatch>

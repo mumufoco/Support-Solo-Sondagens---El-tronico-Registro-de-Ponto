@@ -93,5 +93,5 @@ class Autoload extends AutoloadConfig
      * @var array<int, string>
      * @phpstan-var list<string>
      */
-    public $helpers = [];
+    public $helpers = ['custom'];
 }

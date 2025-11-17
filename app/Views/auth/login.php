@@ -72,7 +72,7 @@
                             </div>
                         <?php endif; ?>
 
-                        <form action="/login" method="POST">
+                        <form action="<?= base_url('auth/login') ?>" method="POST">
                             <?= csrf_field() ?>
 
                             <div class="mb-4">

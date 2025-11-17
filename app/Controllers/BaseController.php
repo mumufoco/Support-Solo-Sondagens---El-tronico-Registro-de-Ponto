@@ -46,12 +46,6 @@ abstract class BaseController extends Controller
     protected $currentUser;
 
     /**
-     * Be sure to declare properties for any property fetch you initialized.
-     * The creation of dynamic property is deprecated in PHP 8.2.
-     */
-    // protected $session;
-
-    /**
      * Constructor.
      */
     public function initController(RequestInterface $request, ResponseInterface $response, LoggerInterface $logger)
@@ -95,6 +89,12 @@ abstract class BaseController extends Controller
     protected function hasRole(string $role): bool
     {
         if (!$this->currentUser) {
+            return false;
+        }
+
+        // Verificar se a propriedade 'role' existe no objeto
+        if (!isset($this->currentUser->role)) {
+            log_message('error', 'User object missing role property. User ID: ' . ($this->currentUser->id ?? 'unknown'));
             return false;
         }
 

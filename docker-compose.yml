@@ -1,93 +1,92 @@
+# ==============================================================================
+# Docker Compose - Sistema de Ponto Eletrônico Brasileiro
+# Versão completa com todos os serviços necessários
+# ==============================================================================
+
 version: '3.8'
 
 services:
-  # MySQL Database
+  # =============================================================================
+  # MySQL Database - Banco de dados principal
+  # =============================================================================
   mysql:
     image: mysql:8.0
     container_name: ponto_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root_password}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-CHANGE_THIS_PASSWORD}
       MYSQL_DATABASE: ${DB_DATABASE:-ponto_eletronico}
       MYSQL_USER: ${DB_USERNAME:-ponto_user}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-ponto_pass}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-CHANGE_THIS_PASSWORD}
       MYSQL_AUTHENTICATION_PLUGIN: mysql_native_password
+      TZ: America/Sao_Paulo
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/custom.cnf
-      - ./docker/mysql/init:/docker-entrypoint-initdb.d
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
     ports:
-      - "3306:3306"
+      - "${DB_PORT:-3306}:3306"
     networks:
       - ponto_network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-CHANGE_THIS_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --max_connections=200
 
-  # Redis Cache
+  # =============================================================================
+  # Redis Cache - Cache e sessões
+  # =============================================================================
   redis:
     image: redis:7-alpine
     container_name: ponto_redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password}
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:-CHANGE_THIS_REDIS_PASSWORD}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     networks:
       - ponto_network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 20s
 
-  # PHP-FPM Application
-  php:
-    build:
-      context: .
-      target: php-app
-    container_name: ponto_php
-    restart: unless-stopped
-    environment:
-      CI_ENVIRONMENT: ${CI_ENVIRONMENT:-production}
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_DATABASE: ${DB_DATABASE:-ponto_eletronico}
-      DB_USERNAME: ${DB_USERNAME:-ponto_user}
-      DB_PASSWORD: ${DB_PASSWORD:-ponto_pass}
-      REDIS_HOST: redis
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
-      DEEPFACE_API_URL: http://deepface:5000
-    volumes:
-      - ./:/var/www/html
-      - ./writable:/var/www/html/writable
-      - php_sessions:/tmp/sessions
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - ponto_network
-
-  # DeepFace API (Facial Recognition)
+  # =============================================================================
+  # DeepFace API - Reconhecimento Facial
+  # =============================================================================
   deepface:
     build:
-      context: .
-      target: deepface-api
+      context: ./deepface-api
+      dockerfile: Dockerfile
     container_name: ponto_deepface
     restart: unless-stopped
     environment:
-      FLASK_ENV: production
-      FACES_DIR: /app/faces
+      FLASK_ENV: ${FLASK_ENV:-production}
+      DEEPFACE_API_KEY: ${DEEPFACE_API_KEY:-CHANGE_THIS_API_KEY}
+      DEEPFACE_THRESHOLD: ${DEEPFACE_THRESHOLD:-0.40}
+      DEEPFACE_MODEL: ${DEEPFACE_MODEL:-VGG-Face}
+      DEEPFACE_DETECTOR: ${DEEPFACE_DETECTOR:-opencv}
+      TZ: America/Sao_Paulo
     volumes:
       - deepface_faces:/app/faces
       - deepface_logs:/app/logs
-    ports:
-      - "5000:5000"
+    expose:
+      - "5000"
     networks:
       - ponto_network
     healthcheck:
@@ -95,34 +94,83 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
-  # Nginx Web Server
-  nginx:
+  # =============================================================================
+  # App - Aplicação PHP/CodeIgniter (Nginx + PHP-FPM)
+  # =============================================================================
+  app:
     build:
       context: .
-      target: nginx-server
-    container_name: ponto_nginx
+      dockerfile: Dockerfile
+    container_name: ponto_app
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
+    environment:
+      # CodeIgniter
+      CI_ENVIRONMENT: ${CI_ENVIRONMENT:-production}
+      # Database
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-ponto_eletronico}
+      DB_USERNAME: ${DB_USERNAME:-ponto_user}
+      DB_PASSWORD: ${DB_PASSWORD:-CHANGE_THIS_PASSWORD}
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-CHANGE_THIS_REDIS_PASSWORD}
+      # DeepFace
+      DEEPFACE_API_URL: http://deepface:5000
+      DEEPFACE_API_KEY: ${DEEPFACE_API_KEY:-CHANGE_THIS_API_KEY}
+      # Security
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-YOUR-32-CHARACTER-ENCRYPTION-KEY-HERE}
+      # Timezone
+      TZ: America/Sao_Paulo
     volumes:
-      - ./public:/var/www/html/public
-      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
-      - ./docker/nginx/ssl:/etc/nginx/ssl
-      - nginx_logs:/var/log/nginx
+      # Dados persistentes
+      - storage_data:/var/www/html/storage
+      - writable_data:/var/www/html/writable
+      # Configurações (read-only)
+      - ./.env:/var/www/html/.env:ro
+    ports:
+      - "${APP_PORT:-80}:80"
+      - "${APP_PORT_SSL:-443}:443"
     depends_on:
-      - php
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      deepface:
+        condition: service_healthy
     networks:
       - ponto_network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "curl", "-f", "http://localhost/"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
 
-  # PHPMyAdmin (Optional - for development)
+  # =============================================================================
+  # SERVIÇOS DE DESENVOLVIMENTO (profiles: development)
+  # =============================================================================
+
+  # PHPMyAdmin - Interface web para MySQL
   phpmyadmin:
     image: phpmyadmin:latest
     container_name: ponto_phpmyadmin
@@ -131,44 +179,88 @@ services:
       PMA_HOST: mysql
       PMA_PORT: 3306
       PMA_USER: ${DB_USERNAME:-ponto_user}
-      PMA_PASSWORD: ${DB_PASSWORD:-ponto_pass}
+      PMA_PASSWORD: ${DB_PASSWORD:-CHANGE_THIS_PASSWORD}
       UPLOAD_LIMIT: 100M
+      MEMORY_LIMIT: 512M
+      TZ: America/Sao_Paulo
     ports:
-      - "8080:80"
+      - "${PHPMYADMIN_PORT:-8080}:80"
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
     networks:
       - ponto_network
     profiles:
       - development
 
-  # Mailhog (Email testing - for development)
+  # Mailhog - Captura de emails para testes
   mailhog:
     image: mailhog/mailhog:latest
     container_name: ponto_mailhog
     restart: unless-stopped
     ports:
-      - "1025:1025"  # SMTP
-      - "8025:8025"  # Web UI
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"  # SMTP
+      - "${MAILHOG_WEB_PORT:-8025}:8025"   # Web UI
     networks:
       - ponto_network
     profiles:
       - development
 
+  # Redis Commander - Interface web para Redis
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: ponto_redis_commander
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: local:redis:6379:0:${REDIS_PASSWORD:-CHANGE_THIS_REDIS_PASSWORD}
+    ports:
+      - "${REDIS_COMMANDER_PORT:-8081}:8081"
+    depends_on:
+      - redis
+    networks:
+      - ponto_network
+    profiles:
+      - development
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
 networks:
   ponto_network:
+    name: ponto_network
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
+# =============================================================================
+# VOLUMES - Dados persistentes
+# =============================================================================
 volumes:
+  # Database
   mysql_data:
     driver: local
+    name: ponto_mysql_data
+
+  # Cache
   redis_data:
     driver: local
+    name: ponto_redis_data
+
+  # Biometric data
   deepface_faces:
     driver: local
+    name: ponto_deepface_faces
+
   deepface_logs:
     driver: local
-  php_sessions:
+    name: ponto_deepface_logs
+
+  # Application data
+  storage_data:
     driver: local
-  nginx_logs:
+    name: ponto_storage_data
+
+  writable_data:
     driver: local
+    name: ponto_writable_data

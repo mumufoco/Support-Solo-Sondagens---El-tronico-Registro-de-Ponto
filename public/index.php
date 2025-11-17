@@ -12,11 +12,77 @@
  * @link       https://github.com/mumufoco/ponto-eletronico
  */
 
+use CodeIgniter\Boot;
+use Config\Paths;
+
+/*
+ *---------------------------------------------------------------
+ * CHECK PHP VERSION
+ *---------------------------------------------------------------
+ */
+
+$minPhpVersion = '8.1'; // If you update this, don't forget to update `spark`.
+if (version_compare(PHP_VERSION, $minPhpVersion, '<')) {
+    $message = sprintf(
+        'Your PHP version must be %s or higher to run CodeIgniter. Current version: %s',
+        $minPhpVersion,
+        PHP_VERSION,
+    );
+
+    header('HTTP/1.1 503 Service Unavailable.', true, 503);
+    echo $message;
+
+    exit(1);
+}
+
+/*
+ *---------------------------------------------------------------
+ * DEFINE ENVIRONMENT CONSTANT EARLY
+ *---------------------------------------------------------------
+ */
+
+// Define ENVIRONMENT constant before anything else to prevent "Undefined constant" errors
+// This is normally done by Boot.php, but we need it earlier for error handling
+if (!defined('ENVIRONMENT')) {
+    // Try to load from .env file
+    $envFile = __DIR__ . '/../.env';
+    $environment = 'production'; // Default to production for safety
+
+    if (file_exists($envFile)) {
+        $envContent = file_get_contents($envFile);
+        if (preg_match('/^\s*CI_ENVIRONMENT\s*=\s*["\']?(\w+)["\']?\s*$/m', $envContent, $matches)) {
+            $environment = $matches[1];
+        }
+    }
+
+    define('ENVIRONMENT', $environment);
+}
+
+/*
+ *---------------------------------------------------------------
+ * LOAD PRODUCTION PHP CONFIGURATION
+ *---------------------------------------------------------------
+ */
+
+// Force critical PHP settings for production environment
+// This ensures session cookies are secure even if .htaccess/.user.ini don't work
+if (file_exists(__DIR__ . '/php-config-production.php')) {
+    require __DIR__ . '/php-config-production.php';
+}
+
+/*
+ *---------------------------------------------------------------
+ * SET THE CURRENT DIRECTORY
+ *---------------------------------------------------------------
+ */
+
 // Path to the front controller (this file)
 define('FCPATH', __DIR__ . DIRECTORY_SEPARATOR);
 
 // Ensure the current directory is pointing to the front controller's directory
-chdir(FCPATH);
+if (getcwd() . DIRECTORY_SEPARATOR !== FCPATH) {
+    chdir(FCPATH);
+}
 
 /*
  *---------------------------------------------------------------
@@ -27,22 +93,28 @@ chdir(FCPATH);
  * and fires up an environment-specific bootstrapping.
  */
 
-// Load our paths config file
-$pathsConfig = FCPATH . '../app/Config/Paths.php';
-require realpath($pathsConfig) ?: $pathsConfig;
+// LOAD OUR PATHS CONFIG FILE
+// This is the line that might need to be changed, depending on your folder structure.
+require FCPATH . '../app/Config/Paths.php';
+// ^^^ Change this line if you move your application folder
 
-$paths = new Config\Paths();
+$paths = new Paths();
 
-// Location of the framework bootstrap file.
-$bootstrap = rtrim($paths->systemDirectory, '\\/ ') . DIRECTORY_SEPARATOR . 'bootstrap.php';
-$app       = require realpath($bootstrap) ?: $bootstrap;
+// LOAD COMPOSER AUTOLOADER
+// This must be loaded before Boot.php to ensure all classes are available
+$composerAutoload = FCPATH . '../vendor/autoload.php';
+if (is_file($composerAutoload)) {
+    require $composerAutoload;
+}
 
-/*
- *---------------------------------------------------------------
- * LAUNCH THE APPLICATION
- *---------------------------------------------------------------
- * Now that everything is set up, it's time to actually fire
- * up the engines and make this app do its thang.
- */
+// LOAD EXCEPTION CLASSES BEFORE BOOT
+// Load critical exception classes manually before Boot.php to prevent
+// "InvalidArgumentException not found" errors during DotEnv initialization
+if (file_exists(__DIR__ . '/bootstrap-exceptions.php')) {
+    require __DIR__ . '/bootstrap-exceptions.php';
+}
 
-$app->run();
+// LOAD THE FRAMEWORK BOOTSTRAP FILE
+require $paths->systemDirectory . '/Boot.php';
+
+exit(Boot::bootWeb($paths));

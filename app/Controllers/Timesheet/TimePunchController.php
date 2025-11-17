@@ -142,8 +142,16 @@ class TimePunchController extends BaseController
             return $this->respondError('QR Code expirado. Gere um novo código.', null, 400);
         }
 
-        // Verify signature
-        $expectedSignature = hash('sha256', $employeeId . $timestamp . env('app.encryption.key'));
+        // Verify signature - CRITICAL: Validate encryption key exists
+        $encryptionKey = env('app.encryption.key');
+
+        if (empty($encryptionKey)) {
+            log_message('critical', 'Encryption key not configured! QR Code validation failed.');
+            return $this->respondError('Erro de configuração de segurança. Contate o administrador.', null, 500);
+        }
+
+        // Use HMAC for better security
+        $expectedSignature = hash_hmac('sha256', $employeeId . $timestamp, $encryptionKey);
 
         if (!hash_equals($expectedSignature, $signature)) {
             $this->auditModel->log(
@@ -431,8 +439,8 @@ class TimePunchController extends BaseController
             'punch_time'    => date('Y-m-d H:i:s'),
             'punch_type'    => $punchType,
             'method'        => $method,
-            'latitude'      => $latitude,
-            'longitude'     => $longitude,
+            'latitude'      => $locationLat,
+            'longitude'     => $locationLng,
             'ip_address'    => $this->getClientIp(),
             'user_agent'    => $this->getUserAgent(),
         ];

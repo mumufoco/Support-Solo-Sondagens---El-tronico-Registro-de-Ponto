@@ -8,13 +8,43 @@ class App extends BaseConfig
 {
     /**
      * Base Site URL
+     *
+     * Automatically configured from environment variable.
+     * Falls back to localhost if not set.
      */
-    public string $baseURL = 'http://localhost:8080/';
+    public string $baseURL = '';
 
     /**
      * Allowed Hostnames
      */
     public array $allowedHostnames = [];
+
+    /**
+     * Constructor
+     */
+    public function __construct()
+    {
+        parent::__construct();
+
+        // Set baseURL from environment or use auto-detection
+        $this->baseURL = env('app.baseURL', $this->baseURL);
+
+        // If still empty, auto-detect from server
+        if (empty($this->baseURL)) {
+            $this->baseURL = $this->detectBaseURL();
+        }
+    }
+
+    /**
+     * Auto-detect base URL from server variables
+     */
+    private function detectBaseURL(): string
+    {
+        $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+
+        return $protocol . '://' . $host . '/';
+    }
 
     /**
      * Index Page
@@ -54,7 +84,7 @@ class App extends BaseConfig
     /**
      * Force Global Secure Requests
      */
-    public bool $forceGlobalSecureRequests = false;
+    public bool $forceGlobalSecureRequests = true;
 
     /**
      * Session Variables
