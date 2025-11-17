@@ -70,11 +70,6 @@ if (file_exists(__DIR__ . '/php-config-production.php')) {
     require __DIR__ . '/php-config-production.php';
 }
 
-// Load exception classes before Boot (fixes InvalidArgumentException error)
-if (file_exists(__DIR__ . '/bootstrap-exceptions.php')) {
-    require __DIR__ . '/bootstrap-exceptions.php';
-}
-
 /*
  *---------------------------------------------------------------
  * SET THE CURRENT DIRECTORY
@@ -110,6 +105,13 @@ $paths = new Paths();
 $composerAutoload = FCPATH . '../vendor/autoload.php';
 if (is_file($composerAutoload)) {
     require $composerAutoload;
+}
+
+// LOAD EXCEPTION CLASSES BEFORE BOOT
+// Load critical exception classes manually before Boot.php to prevent
+// "InvalidArgumentException not found" errors during DotEnv initialization
+if (file_exists(__DIR__ . '/bootstrap-exceptions.php')) {
+    require __DIR__ . '/bootstrap-exceptions.php';
 }
 
 // LOAD THE FRAMEWORK BOOTSTRAP FILE
