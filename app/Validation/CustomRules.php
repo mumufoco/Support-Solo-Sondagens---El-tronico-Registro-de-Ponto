@@ -158,4 +158,122 @@ class CustomRules
 
         return (int)$cpf[10] == $digit2;
     }
+
+    /**
+     * Valida CNPJ brasileiro
+     */
+    public function valid_cnpj(string $value, string $params = null, array $data = []): bool
+    {
+        $cnpj = preg_replace('/[^0-9]/', '', $value);
+
+        if (strlen($cnpj) != 14) {
+            return false;
+        }
+
+        // Check for known invalid CNPJs (all same digits)
+        if (preg_match('/^(\d)\1{13}$/', $cnpj)) {
+            return false;
+        }
+
+        // Validate first check digit
+        $sum = 0;
+        $multiplier = 5;
+        for ($i = 0; $i < 12; $i++) {
+            $sum += (int)$cnpj[$i] * $multiplier;
+            $multiplier = ($multiplier == 2) ? 9 : $multiplier - 1;
+        }
+        $remainder = $sum % 11;
+        $digit1 = ($remainder < 2) ? 0 : 11 - $remainder;
+
+        if ((int)$cnpj[12] != $digit1) {
+            return false;
+        }
+
+        // Validate second check digit
+        $sum = 0;
+        $multiplier = 6;
+        for ($i = 0; $i < 13; $i++) {
+            $sum += (int)$cnpj[$i] * $multiplier;
+            $multiplier = ($multiplier == 2) ? 9 : $multiplier - 1;
+        }
+        $remainder = $sum % 11;
+        $digit2 = ($remainder < 2) ? 0 : 11 - $remainder;
+
+        return (int)$cnpj[13] == $digit2;
+    }
+
+    /**
+     * Valida telefone brasileiro
+     */
+    public function valid_phone_br(string $value, string $params = null, array $data = []): bool
+    {
+        if (empty($value)) {
+            return true; // permit_empty handle this
+        }
+
+        $phone = preg_replace('/[^0-9]/', '', $value);
+
+        // Valid lengths: 10 (landline) or 11 (mobile)
+        if (strlen($phone) < 10 || strlen($phone) > 11) {
+            return false;
+        }
+
+        // Check if it starts with valid DDD (area code 11-99)
+        $ddd = (int)substr($phone, 0, 2);
+        if ($ddd < 11 || $ddd > 99) {
+            return false;
+        }
+
+        // For 11 digits, 3rd digit must be 9 (mobile)
+        if (strlen($phone) == 11) {
+            if ($phone[2] != '9') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Valida horário no formato HH:MM ou HH:MM:SS
+     */
+    public function valid_time(string $value, string $params = null, array $data = []): bool
+    {
+        if (empty($value)) {
+            return true; // permit_empty handle this
+        }
+
+        // Match HH:MM or HH:MM:SS
+        if (!preg_match('/^([0-1][0-9]|2[0-3]):([0-5][0-9])(:([0-5][0-9]))?$/', $value)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Valida data no formato brasileiro (dd/mm/YYYY)
+     */
+    public function valid_date_br(string $value, string $params = null, array $data = []): bool
+    {
+        if (empty($value)) {
+            return true; // permit_empty handle this
+        }
+
+        // Match dd/mm/YYYY
+        if (!preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $value, $matches)) {
+            return false;
+        }
+
+        $day = (int)$matches[1];
+        $month = (int)$matches[2];
+        $year = (int)$matches[3];
+
+        // Check if date is valid
+        if (!checkdate($month, $day, $year)) {
+            return false;
+        }
+
+        return true;
+    }
 }
