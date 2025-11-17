@@ -29,9 +29,25 @@ DirectoryIndex index.php index.html
     Require all denied
 </FilesMatch>
 
-# PHP settings
+# PHP settings for mod_php (Apache Module)
 <IfModule mod_php.c>
     php_flag display_errors Off
     php_value upload_max_filesize 64M
     php_value post_max_size 64M
+    php_value max_execution_time 300
+    php_value memory_limit 256M
+
+    # Session configuration (CRITICAL for HTTPS)
+    php_value session.cookie_secure 1
+    php_value session.cookie_httponly 1
+    php_value session.cookie_samesite "Lax"
+    php_value session.gc_probability 1
+    php_value session.gc_divisor 100
+    php_value session.gc_maxlifetime 7200
+</IfModule>
+
+# PHP settings for PHP-FPM/CGI (cPanel default)
+<IfModule mod_fcgid.c>
+    FcgidInitialEnv session.cookie_secure 1
+    FcgidInitialEnv session.cookie_httponly 1
 </IfModule>

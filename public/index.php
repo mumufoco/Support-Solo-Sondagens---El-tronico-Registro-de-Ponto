@@ -37,6 +37,18 @@ if (version_compare(PHP_VERSION, $minPhpVersion, '<')) {
 
 /*
  *---------------------------------------------------------------
+ * LOAD PRODUCTION PHP CONFIGURATION
+ *---------------------------------------------------------------
+ */
+
+// Force critical PHP settings for production environment
+// This ensures session cookies are secure even if .htaccess/.user.ini don't work
+if (file_exists(__DIR__ . '/php-config-production.php')) {
+    require __DIR__ . '/php-config-production.php';
+}
+
+/*
+ *---------------------------------------------------------------
  * SET THE CURRENT DIRECTORY
  *---------------------------------------------------------------
  */
