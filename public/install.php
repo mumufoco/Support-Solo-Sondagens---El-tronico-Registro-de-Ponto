@@ -90,67 +90,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
 
         case '4': // Run installation
-            if ($_SESSION['db_tested'] ?? false) {
-                try {
-                    $_SESSION['install_log'] = [];
+            // Detailed validation with helpful diagnostics
+            $dbTested = $_SESSION['db_tested'] ?? false;
+            $hasDbConfig = !empty($_SESSION['db_host']) && !empty($_SESSION['db_name']) && !empty($_SESSION['db_user']);
 
-                    // Step 1: Create .env file
-                    $_SESSION['install_log'][] = "Criando arquivo .env...";
-                    $envContent = createEnvFile();
-                    file_put_contents(__DIR__ . '/../.env', $envContent);
-                    $_SESSION['install_log'][] = "✓ Arquivo .env criado";
-
-                    // Step 2: Run migrations
-                    $_SESSION['install_log'][] = "Executando migrations do banco de dados...";
-                    runMigrations();
-                    $_SESSION['install_log'][] = "✓ Migrations executadas com sucesso";
-
-                    // Step 3: Create admin user (custom)
-                    $_SESSION['install_log'][] = "Criando usuário administrador...";
-                    createAdminUser();
-                    $_SESSION['install_log'][] = "✓ Usuário administrador criado";
-
-                    // Step 4: Run seeders (settings and default data)
-                    $_SESSION['install_log'][] = "Executando seeders (configurações iniciais)...";
-                    runSeeders();
-                    $_SESSION['install_log'][] = "✓ Seeders executados";
-
-                    // Step 5: Create lock file
-                    $_SESSION['install_log'][] = "Finalizando instalação...";
-                    file_put_contents(__DIR__ . '/../writable/installed.lock', date('Y-m-d H:i:s'));
-                    $_SESSION['install_log'][] = "✓ Arquivo de proteção criado";
-
-                    $_SESSION['installation_complete'] = true;
-                    $success = "Instalação concluída com sucesso!";
-
-                    // Clear output buffer and redirect
-                    ob_end_clean();
-
-                    // Try header redirect (METHOD 1)
-                    if (!headers_sent()) {
-                        header('Location: install.php?step=5');
-                        exit;
-                    }
-
-                    // Fallback: Meta refresh + JavaScript (METHOD 2 & 3)
-                    echo '<!DOCTYPE html><html><head>';
-                    echo '<meta http-equiv="refresh" content="0;url=install.php?step=5">';
-                    echo '</head><body>';
-                    echo '<p>Redirecionando... <a href="install.php?step=5">Clique aqui se não for redirecionado automaticamente</a></p>';
-                    echo '<script>window.location.href="install.php?step=5";</script>';
-                    echo '</body></html>';
-                    exit;
-                } catch (Exception $e) {
-                    $error = "Erro na instalação: " . $e->getMessage();
-                    $_SESSION['install_log'][] = "✗ ERRO: " . $e->getMessage();
-
-                    // Show detailed logs
-                    if (isset($_SESSION['migration_output'])) {
-                        $error .= "\n\nDetalhes das migrations:\n" . $_SESSION['migration_output'];
-                    }
+            if (!$dbTested) {
+                // Diagnose the problem
+                if (!$hasDbConfig) {
+                    $error = "❌ Configuração de banco de dados não encontrada!<br><br>";
+                    $error .= "<strong>Possíveis causas:</strong><br>";
+                    $error .= "• Você pulou a etapa 2 (Configuração do Banco)<br>";
+                    $error .= "• A sessão PHP foi perdida (cookies bloqueados?)<br>";
+                    $error .= "• O navegador não está aceitando cookies<br><br>";
+                    $error .= "<strong>Solução:</strong> Volte para a <a href='install.php?step=2' style='color: #3498db; text-decoration: underline;'>Etapa 2</a> e configure o banco de dados.";
+                } else {
+                    $error = "⚠️ Banco de dados configurado mas não testado!<br><br>";
+                    $error .= "<strong>Dados encontrados:</strong><br>";
+                    $error .= "• Host: " . htmlspecialchars($_SESSION['db_host']) . "<br>";
+                    $error .= "• Database: " . htmlspecialchars($_SESSION['db_name']) . "<br>";
+                    $error .= "• User: " . htmlspecialchars($_SESSION['db_user']) . "<br><br>";
+                    $error .= "<strong>Problema:</strong> O teste de conexão não foi executado com sucesso.<br><br>";
+                    $error .= "<strong>Solução:</strong> Volte para a <a href='install.php?step=2' style='color: #3498db; text-decoration: underline;'>Etapa 2</a> e clique em 'Testar Conexão' antes de continuar.";
                 }
-            } else {
-                $error = "Configure o banco de dados primeiro!";
+                break; // Stop here, don't run installation
+            }
+
+            // Validate admin user data before proceeding
+            if (empty($_SESSION['admin_email']) || empty($_SESSION['admin_password'])) {
+                $error = "⚠️ Dados do administrador não configurados!<br><br>";
+                $error .= "<strong>Solução:</strong> Volte para a <a href='install.php?step=3' style='color: #3498db; text-decoration: underline;'>Etapa 3</a> e preencha os dados do administrador.";
+                break;
+            }
+
+            // All validations passed, proceed with installation
+            try {
+                $_SESSION['install_log'] = [];
+
+                // Step 1: Create .env file
+                $_SESSION['install_log'][] = "Criando arquivo .env...";
+                $envContent = createEnvFile();
+                file_put_contents(__DIR__ . '/../.env', $envContent);
+                $_SESSION['install_log'][] = "✓ Arquivo .env criado";
+
+                // Step 2: Run migrations
+                $_SESSION['install_log'][] = "Executando migrations do banco de dados...";
+                runMigrations();
+                $_SESSION['install_log'][] = "✓ Migrations executadas com sucesso";
+
+                // Step 3: Create admin user (custom)
+                $_SESSION['install_log'][] = "Criando usuário administrador...";
+                createAdminUser();
+                $_SESSION['install_log'][] = "✓ Usuário administrador criado";
+
+                // Step 4: Run seeders (settings and default data)
+                $_SESSION['install_log'][] = "Executando seeders (configurações iniciais)...";
+                runSeeders();
+                $_SESSION['install_log'][] = "✓ Seeders executados";
+
+                // Step 5: Create lock file
+                $_SESSION['install_log'][] = "Finalizando instalação...";
+                file_put_contents(__DIR__ . '/../writable/installed.lock', date('Y-m-d H:i:s'));
+                $_SESSION['install_log'][] = "✓ Arquivo de proteção criado";
+
+                $_SESSION['installation_complete'] = true;
+                $success = "Instalação concluída com sucesso!";
+
+                // Clear output buffer and redirect
+                ob_end_clean();
+
+                // Try header redirect (METHOD 1)
+                if (!headers_sent()) {
+                    header('Location: install.php?step=5');
+                    exit;
+                }
+
+                // Fallback: Meta refresh + JavaScript (METHOD 2 & 3)
+                echo '<!DOCTYPE html><html><head>';
+                echo '<meta http-equiv="refresh" content="0;url=install.php?step=5">';
+                echo '</head><body>';
+                echo '<p>Redirecionando... <a href="install.php?step=5">Clique aqui se não for redirecionado automaticamente</a></p>';
+                echo '<script>window.location.href="install.php?step=5";</script>';
+                echo '</body></html>';
+                exit;
+            } catch (Exception $e) {
+                $error = "Erro na instalação: " . $e->getMessage();
+                $_SESSION['install_log'][] = "✗ ERRO: " . $e->getMessage();
+
+                // Show detailed logs
+                if (isset($_SESSION['migration_output'])) {
+                    $error .= "\n\nDetalhes das migrations:\n" . $_SESSION['migration_output'];
+                }
             }
             break;
     }
@@ -626,6 +655,32 @@ function createAdminUser() {
 
                 case '2': // Database configuration
                     echo '<h2>Configuração do Banco de Dados</h2>';
+
+                    // Session diagnostic (only show if there's a problem)
+                    if (isset($_POST['db_host']) && !isset($_SESSION['db_host'])) {
+                        echo '<div class="alert alert-error">';
+                        echo '<strong>⚠️ PROBLEMA DE SESSÃO DETECTADO!</strong><br><br>';
+                        echo 'O PHP não está salvando dados da sessão. Isso pode ser causado por:<br>';
+                        echo '• Cookies bloqueados no navegador<br>';
+                        echo '• Diretório writable/session sem permissão de escrita<br>';
+                        echo '• Configuração incorreta do PHP<br><br>';
+                        echo '<strong>Solução:</strong><br>';
+                        echo '1. Verifique se os cookies estão habilitados no navegador<br>';
+                        echo '2. Execute: <code>chmod -R 775 writable/session</code><br>';
+                        echo '3. Recarregue esta página';
+                        echo '</div>';
+                    }
+
+                    // Show connection status if already tested
+                    $dbTested = $_SESSION['db_tested'] ?? false;
+                    if ($dbTested) {
+                        echo '<div class="alert alert-success">';
+                        echo '✓ <strong>Conexão testada com sucesso!</strong><br>';
+                        echo 'Host: ' . htmlspecialchars($_SESSION['db_host'] ?? 'N/A') . ' | ';
+                        echo 'Database: ' . htmlspecialchars($_SESSION['db_name'] ?? 'N/A');
+                        echo '</div>';
+                    }
+
                     echo '<form method="POST">';
                     echo '<div class="grid">';
                     echo '<div class="form-group"><label>Host:</label><input type="text" name="db_host" value="' . ($_SESSION['db_host'] ?? 'localhost') . '" required></div>';
@@ -634,10 +689,19 @@ function createAdminUser() {
                     echo '<div class="form-group"><label>Nome do Banco:</label><input type="text" name="db_name" value="' . ($_SESSION['db_name'] ?? 'ponto_eletronico') . '" required><small>Será criado automaticamente se não existir</small></div>';
                     echo '<div class="form-group"><label>Usuário:</label><input type="text" name="db_user" value="' . ($_SESSION['db_user'] ?? 'root') . '" required></div>';
                     echo '<div class="form-group"><label>Senha:</label><input type="password" name="db_pass" value="' . ($_SESSION['db_pass'] ?? '') . '"></div>';
-                    echo '<button type="submit" class="btn">Testar Conexão</button>';
-                    if ($_SESSION['db_tested'] ?? false) {
+
+                    echo '<div style="margin-top: 20px;">';
+                    echo '<button type="submit" class="btn">🔍 Testar Conexão</button>';
+
+                    if ($dbTested) {
                         echo ' <a href="install.php?step=3" class="btn btn-success">Continuar →</a>';
+                    } else {
+                        echo '<p style="margin-top: 15px; color: #7f8c8d; font-size: 14px;">';
+                        echo '⚠️ <strong>Importante:</strong> Clique em "Testar Conexão" primeiro. ';
+                        echo 'O botão "Continuar" só aparecerá após o teste bem-sucedido.';
+                        echo '</p>';
                     }
+                    echo '</div>';
                     echo '</form>';
                     break;
 
