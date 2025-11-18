@@ -18,25 +18,28 @@ class Database extends Config
 
     /**
      * The default database connection.
+     * Now configured to use environment variables for flexibility
      */
     public array $default = [
         'DSN'          => '',
-        'hostname'     => 'localhost',
-        'username'     => 'root',
+        'hostname'     => '',
+        'username'     => '',
         'password'     => '',
-        'database'     => 'ponto_eletronico',
-        'DBDriver'     => 'MySQLi',
+        'database'     => '',
+        'DBDriver'     => 'Postgre',
         'DBPrefix'     => '',
         'pConnect'     => false,
         'DBDebug'      => (ENVIRONMENT !== 'production'),
         'charset'      => '',  // Will be set in constructor based on DBDriver
         'DBCollat'     => '',  // Will be set in constructor based on DBDriver
+        'charset'      => 'utf8',
+        'DBCollat'     => '',
         'swapPre'      => '',
         'encrypt'      => false,
         'compress'     => false,
         'strictOn'     => false,
         'failover'     => [],
-        'port'         => 3306,
+        'port'         => 6543,
         'numberNative' => false,
         'dateFormat'   => [
             'date'     => 'Y-m-d',
@@ -71,6 +74,16 @@ class Database extends Config
     public function __construct()
     {
         parent::__construct();
+
+        // Load database configuration from environment variables
+        $this->default['hostname'] = env('database.default.hostname', 'localhost');
+        $this->default['username'] = env('database.default.username', 'root');
+        $this->default['password'] = env('database.default.password', '');
+        $this->default['database'] = env('database.default.database', 'ponto_eletronico');
+        $this->default['DBDriver'] = env('database.default.DBDriver', 'Postgre');
+        $this->default['port']     = env('database.default.port', 6543);
+        $this->default['charset']  = env('database.default.charset', 'utf8');
+        $this->default['DBCollat'] = env('database.default.DBCollat', '');
 
         // Ensure that we always set the database group to 'tests' if
         // we are currently running an automated test suite, so that
