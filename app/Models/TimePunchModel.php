@@ -75,11 +75,23 @@ class TimePunchModel extends Model
             $db = \Config\Database::connect();
             $db->transStart();
 
-            // Lock table for consistent NSR generation
-            $builder = $db->table($this->table);
-            $lastNSR = $builder->selectMax('nsr')->get()->getRow();
+            // SECURITY FIX: Lock table to prevent race condition in NSR generation
+            // This ensures two simultaneous requests don't get the same NSR
+            $db->query('LOCK TABLES ' . $this->table . ' WRITE');
 
-            $data['data']['nsr'] = ($lastNSR && $lastNSR->nsr) ? $lastNSR->nsr + 1 : 1;
+            try {
+                $builder = $db->table($this->table);
+                $lastNSR = $builder->selectMax('nsr')->get()->getRow();
+
+                $data['data']['nsr'] = ($lastNSR && $lastNSR->nsr) ? $lastNSR->nsr + 1 : 1;
+
+                // Unlock tables before transaction complete
+                $db->query('UNLOCK TABLES');
+            } catch (\Exception $e) {
+                // Ensure tables are unlocked even if error occurs
+                $db->query('UNLOCK TABLES');
+                throw $e;
+            }
 
             $db->transComplete();
         }

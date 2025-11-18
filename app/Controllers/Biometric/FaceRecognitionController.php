@@ -164,8 +164,17 @@ class FaceRecognitionController extends BaseController
         }
 
         // Delete file if exists
-        if ($template->file_path && file_exists($template->file_path)) {
-            unlink($template->file_path);
+        // SECURITY FIX: Validate file path before deletion to prevent path traversal
+        if ($template->file_path) {
+            $safePath = realpath($template->file_path);
+
+            // Verify path is within WRITEPATH and file exists
+            if ($safePath && strpos($safePath, realpath(WRITEPATH)) === 0 && file_exists($safePath)) {
+                unlink($safePath);
+                log_message('info', "Biometric file deleted: {$safePath} for employee {$template->employee_id}");
+            } else {
+                log_message('warning', "Attempted to delete file outside WRITEPATH: {$template->file_path}");
+            }
         }
 
         // Delete template

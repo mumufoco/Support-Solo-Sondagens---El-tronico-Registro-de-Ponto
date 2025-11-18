@@ -190,13 +190,17 @@ class AuthController extends ResourceController
             return $this->fail('Não autenticado.', 401);
         }
 
+        // SECURITY FIX (LGPD): Mask CPF to show only first 3 and last 2 digits
+        // Example: 123.***.***-89 instead of 123.456.789-10
+        $maskedCpf = $this->maskCpf($employee->cpf);
+
         return $this->respond([
             'success' => true,
             'data' => [
                 'id' => $employee->id,
                 'name' => $employee->name,
                 'email' => $employee->email,
-                'cpf' => format_cpf($employee->cpf),
+                'cpf' => $maskedCpf,  // Masked for LGPD compliance
                 'role' => $employee->role,
                 'department' => $employee->department,
                 'position' => $employee->position,
@@ -373,6 +377,26 @@ class AuthController extends ResourceController
         } catch (\Exception $e) {
             return null;
         }
+    }
+
+    /**
+     * Mask CPF for LGPD compliance
+     * Shows only first 3 and last 2 digits: 123.***.***-89
+     *
+     * @param string $cpf
+     * @return string
+     */
+    protected function maskCpf(string $cpf): string
+    {
+        // Remove non-numeric characters
+        $cpfNumbers = preg_replace('/[^0-9]/', '', $cpf);
+
+        if (strlen($cpfNumbers) !== 11) {
+            return '***.***.***-**';  // Invalid CPF, mask everything
+        }
+
+        // Format: 123.***.***-89
+        return substr($cpfNumbers, 0, 3) . '.***.***-' . substr($cpfNumbers, -2);
     }
 
     /**

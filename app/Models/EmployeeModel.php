@@ -276,8 +276,15 @@ class EmployeeModel extends Model
         ];
 
         // Generate HMAC signature
+        // SECURITY FIX: Validate encryption key exists before generating signature
+        $encryptionKey = env('encryption.key');
+        if (empty($encryptionKey)) {
+            log_message('error', 'QR Code generation failed: encryption.key not configured');
+            throw new \RuntimeException('Sistema de criptografia não configurado. Contate o administrador.');
+        }
+
         $payloadString = json_encode($payload);
-        $signature = hash_hmac('sha256', $payloadString, env('encryption.key'));
+        $signature = hash_hmac('sha256', $payloadString, $encryptionKey);
 
         // QR data format: EMP-{id}-{timestamp}-{signature}
         $qrData = "EMP-{$employee->id}-{$timestamp}-{$signature}";
