@@ -1,9 +1,9 @@
 <?php return array(
     'root' => array(
         'name' => 'mumufoco/ponto-eletronico',
-        'pretty_version' => 'dev-claude/fix-composer-setup-warning-01NedH4Ms8iQLTecqkxf9rPx',
-        'version' => 'dev-claude/fix-composer-setup-warning-01NedH4Ms8iQLTecqkxf9rPx',
-        'reference' => '979aba7f8353c0c07110725903d0d906f1cccb2e',
+        'pretty_version' => 'dev-claude/fix-installer-error-01H6vTMYKdEEfonfAf42jUUY',
+        'version' => 'dev-claude/fix-installer-error-01H6vTMYKdEEfonfAf42jUUY',
+        'reference' => '65d7eeefc0bb4ba4b87f28d961cca78885f61045',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -194,9 +194,9 @@
             'dev_requirement' => false,
         ),
         'mumufoco/ponto-eletronico' => array(
-            'pretty_version' => 'dev-claude/fix-composer-setup-warning-01NedH4Ms8iQLTecqkxf9rPx',
-            'version' => 'dev-claude/fix-composer-setup-warning-01NedH4Ms8iQLTecqkxf9rPx',
-            'reference' => '979aba7f8353c0c07110725903d0d906f1cccb2e',
+            'pretty_version' => 'dev-claude/fix-installer-error-01H6vTMYKdEEfonfAf42jUUY',
+            'version' => 'dev-claude/fix-installer-error-01H6vTMYKdEEfonfAf42jUUY',
+            'reference' => '65d7eeefc0bb4ba4b87f28d961cca78885f61045',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
