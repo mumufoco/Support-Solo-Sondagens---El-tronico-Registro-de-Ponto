@@ -250,7 +250,7 @@ class CreateChatTables extends Migration
 
         $this->forge->addKey('id', true);
         $this->forge->addKey('employee_id');
-        $this->forge->addKey('connection_id', true); // Unique
+        $this->forge->addKey('connection_id', false, true); // Unique (not primary key)
         $this->forge->addKey('status');
         $this->forge->addForeignKey('employee_id', 'employees', 'id', 'CASCADE', 'CASCADE');
         $this->forge->createTable('chat_online_users');

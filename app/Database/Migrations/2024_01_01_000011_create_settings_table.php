@@ -59,7 +59,7 @@ class CreateSettingsTable extends Migration
         ]);
 
         $this->forge->addKey('id', true);
-        $this->forge->addKey('key');
+        // key already has unique index from field definition
         $this->forge->addKey(['group', 'key']);
 
         $this->forge->createTable('settings');

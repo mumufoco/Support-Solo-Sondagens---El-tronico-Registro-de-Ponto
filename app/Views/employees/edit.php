@@ -238,29 +238,20 @@
                                 </h6>
                             </div>
 
+                            <?php // TODO: Implementar colunas has_face_biometric e has_fingerprint_biometric na tabela employees ?>
                             <div class="col-md-6 mb-3">
-                                <div class="alert <?= $employee->has_face_biometric ? 'alert-success' : 'alert-warning' ?>">
+                                <div class="alert alert-secondary">
                                     <i class="fas fa-face-smile me-2"></i>
                                     <strong>Biometria Facial:</strong>
-                                    <?= $employee->has_face_biometric ? 'Cadastrada' : 'Não cadastrada' ?>
-                                    <?php if ($employee->has_face_biometric): ?>
-                                        <a href="<?= base_url('biometric/face/' . $employee->id) ?>" class="ms-2">Gerenciar</a>
-                                    <?php else: ?>
-                                        <a href="<?= base_url('biometric/face/enroll/' . $employee->id) ?>" class="ms-2">Cadastrar</a>
-                                    <?php endif; ?>
+                                    Não implementado
                                 </div>
                             </div>
 
                             <div class="col-md-6 mb-3">
-                                <div class="alert <?= $employee->has_fingerprint_biometric ? 'alert-success' : 'alert-warning' ?>">
+                                <div class="alert alert-secondary">
                                     <i class="fas fa-fingerprint me-2"></i>
                                     <strong>Biometria Digital:</strong>
-                                    <?= $employee->has_fingerprint_biometric ? 'Cadastrada' : 'Não cadastrada' ?>
-                                    <?php if ($employee->has_fingerprint_biometric): ?>
-                                        <a href="<?= base_url('biometric/fingerprint/' . $employee->id) ?>" class="ms-2">Gerenciar</a>
-                                    <?php else: ?>
-                                        <a href="<?= base_url('fingerprint/enroll/' . $employee->id) ?>" class="ms-2">Cadastrar</a>
-                                    <?php endif; ?>
+                                    Não implementado
                                 </div>
                             </div>
                         </div>

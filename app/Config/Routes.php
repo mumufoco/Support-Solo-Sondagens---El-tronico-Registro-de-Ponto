@@ -11,6 +11,14 @@ $routes->get('/', 'Home::index');
 
 /*
  * --------------------------------------------------------------------
+ * Health Check Routes (Public - for monitoring/CI/CD)
+ * --------------------------------------------------------------------
+ */
+$routes->get('health', 'HealthController::index');
+$routes->get('health/detailed', 'HealthController::detailed');
+
+/*
+ * --------------------------------------------------------------------
  * Authentication Routes
  * --------------------------------------------------------------------
  */
