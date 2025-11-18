@@ -1,0 +1,62 @@
+[
+    {
+        "id": 1,
+        "employee_id": 3,
+        "start_date": "2025-11-25",
+        "end_date": "2025-12-02",
+        "type": "vacation",
+        "reason": "F\u00e9rias anuais programadas",
+        "status": "pending",
+        "approved_by": null,
+        "approved_at": null,
+        "created_at": "2025-11-18 14:38:47"
+    },
+    {
+        "id": 2,
+        "employee_id": 4,
+        "start_date": "2025-11-21",
+        "end_date": "2025-11-21",
+        "type": "personal",
+        "reason": "Assuntos pessoais",
+        "status": "approved",
+        "approved_by": 2,
+        "approved_at": "2025-11-18 14:38:47",
+        "created_at": "2025-11-16 14:38:47"
+    },
+    {
+        "id": 3,
+        "employee_id": 5,
+        "start_date": "2025-12-18",
+        "end_date": "2026-01-02",
+        "type": "vacation",
+        "reason": "F\u00e9rias de final de ano",
+        "status": "pending",
+        "approved_by": null,
+        "approved_at": null,
+        "created_at": "2025-11-17 14:38:47"
+    },
+    {
+        "id": 4,
+        "employee_id": 3,
+        "start_date": "2026-01-17",
+        "end_date": "2026-02-01",
+        "type": "vacation",
+        "reason": "Teste de solicita\u00e7\u00e3o de f\u00e9rias",
+        "status": "approved",
+        "approved_by": 2,
+        "approved_at": "2025-11-18 14:38:52",
+        "created_at": "2025-11-18 14:38:52"
+    },
+    {
+        "id": 5,
+        "employee_id": 4,
+        "start_date": "2026-02-16",
+        "end_date": "2026-02-26",
+        "type": "personal",
+        "reason": "Teste de rejei\u00e7\u00e3o",
+        "status": "rejected",
+        "approved_by": 2,
+        "approved_at": "2025-11-18 14:38:52",
+        "created_at": "2025-11-18 14:38:52"
+    }
+]

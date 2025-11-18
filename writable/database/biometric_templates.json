@@ -1,0 +1,29 @@
+[
+    {
+        "id": 1,
+        "employee_id": 3,
+        "template_data": "v3T5HdCVTte\/y5RZRertzg==::7tyHmtEfElHbm6i4F1Iy8Dm1vxJcGtdB3B7ovdhZZS\/hfB4DgoaFRQbUIshcZN5FjsLYY3C+XO7WOx\/VJk0wVDZcQ\/DbIjZAFQnaMD7zFZ9BeXQjSH3cHnGkbB7+5U1+7PQk8dv7ldJO19JfcWtfppEIXn6gUMrqLXRHsoxBXEkUPik2pdciJw4EJVC40hXfm4qU2yFJmd03\/TgoW+6ch+Sz00lHRMdTTic9oK0vrhfH0dvq7wKom88AeC+7x5jqeCpMPQggbD3r3B9jrxOcPsSJj8Zd5aSSJApSHIabDTh4L0Hx3g7qmWxIEqjYsS2D1CpYpl833AKN+NBOH4evTeGZ5EoYbca0+PDTTqA3G6uJgewjI1eEstutedyouqHGIyunTT9YukLBBF8yTqvdd8qLV0mhMMxdoZzmQrAofmcACi4fkG8n070suIl6dFi3K6v+shi3316JRNfRQhkW3CYgYoYzu23GSDtlO6UJcueNtIMX6bj0Wo\/2pdM\/EdfzWJ3WLI3+N8S+3vxsAFmUqzo48ho2jn2RK7FQXtz\/MHDEU7xRP01oWEvNFEQ8XgVqUUw7fQ0f\/LdDd+TlqD8ttoQFpaejW2GtQksA8wbsdSeCdeP\/oBOn4e+rkmxzU6LBFrpJePBOEegtm0Mw01WvUp1ObJXM3toEdGtNQP6QU6fnudrq7k2SQCYLphFlAKzMzBs2qG2VhgkN7S6HIXXsbAl1tjX2Xe3bLI0zs27aB6r7GpslhOvjj5sG3T\/1LrNz",
+        "template_type": "facial",
+        "quality_score": 0.95,
+        "is_active": 1,
+        "created_at": "2025-11-18 14:38:47"
+    },
+    {
+        "id": 2,
+        "employee_id": 4,
+        "template_data": "H5SZ9fpFZwdJKNhpWYlOag==::p0IDwttWcPLiON1aEWSj4zn0XD5ECRLm3WtW8MWb3RrkI6zqtiqXW+HOYOVZ0pLA5yvFa1I+HVKDGRYLo9OG6wy9fpgY9FrRHvc7EHfNiwTqdxSANdYk8hXq0el9WpwFEfGDUGaxwAeplPsqAThu2vFdnH+S1Mk8SBioL2fV6XPk1oom4xpnmaq4nJI9al+eb89EzA3T5NMW6fykJ2J0g\/6LnINxYoHIBNefHSwJPdoRQpOeXBIxidkZnuJQWuoxAVZes6OASNi8bn2zWSPgkDHBMmbnDHpia7DchUiwqFrHZmFwIewvj8imDy7LWfdlSo66wgB8rdkipxcVF6DAN161XLPmm3q48VSO3IeUjgCfFWFmf\/LytkMrCjG1nUrb216bzCXMNXPdn\/KS4n\/1zsjfIn8PXv6I9ygyILptgvt5feT7eoxeby5ytNst1Kx3mc1\/9yHW4AUjCXtSPk9gzAhuHClEqAhhdfq7oacsGbQAbjlrJH+weHNIDZHYzrJv\/G4gKjxPEuKrGJdd2epqg5BKGzHIrN9WxE2igpNgf\/WJoS2BfbnfXVo3FJVFn3M1deToahhq4dWXw7qZlFMzFP9vf3QoNpfHwZA1B2T9fJBgEMY8wtfw7HFAe8SaKEClPJ6fzpdJvQpujXLjxwkhXflVKyCbylMCozCMxCvvvD9hDKCsHSMEYNOSceU7DfHI7TZxMmU7\/wD1jNqtvm0HaFnH5LNMOBjac7Xyz8VKxWxbyUKWs2j3CN+tE571lfLp",
+        "template_type": "facial",
+        "quality_score": 0.95,
+        "is_active": 1,
+        "created_at": "2025-11-18 14:38:47"
+    },
+    {
+        "id": 3,
+        "employee_id": 5,
+        "template_data": "JA8beMoyAQx9+dfBHLTWlA==::PZOdKwiLazDIkX2cQw6zxy1qWpYs5SPcW8iFLIqskrOGe2HN4Ari2i5atVQli7kDwHD1yTquHMEU6W3NOePWBzaItVMnyTIGRZDwruI7N8vbqRNwq1lT\/5JBUKzJrKIjmsa1byDdQlX\/H1dvmYcHvpaI98lN7CMwQajA4BEpMtJKepP3ZGfH2zCEpzNgDKotjfLPiqK4n6g5h3M0QVNV0pc5JH29QfuCc+ygVGox1H29HBFCbjJQcaEF+VMsQJswkrfkRPPcdUmGjWeZ25B+gFuxwdPc4J2g37EqySW2WsuAwvyYCbVX7FUdsbt6eTz46MHj0\/97pgUUeL8uZhubBD7Vu\/ziqhs4T\/g2iVAg+4RvC8YZP7Dll4681YTiyIIENHt1fZ9sQi4tIporPw3wyzoAmxA13Hu7uRWL9x0uYkDFbcbBuIDRynGySG2YAuQ8vZahW8jNJgfvPk5PQk5ceNcADw5+p1OcJRux2RudiSs0qPCxF0PjqId+LvlNBFrbip1CkpQONiywLjEwD6AxSJM33EchedqzZwShsugPUTseuiEBuMdHLD9PXbD8THQLEXaEtLJsY\/GmzsD0GNmVVI5WwA\/XkKQB9CJ0SQ3mvDsuYcOjp2+zcNZ5rH0FlAbWlGTwLEkPXgRVWnvITigCxJRJPNUMwEgkYKHyLm5A1yTzic0fBFQpQ\/dPkEaslFU9XuBNDQh3T5EG\/QD1UBp3hui+V7hQw1Tvzo9z6VvWdrEF3bOsVK6L9xdwvhGhdZWQ",
+        "template_type": "facial",
+        "quality_score": 0.95,
+        "is_active": 1,
+        "created_at": "2025-11-18 14:38:47"
+    }
+]

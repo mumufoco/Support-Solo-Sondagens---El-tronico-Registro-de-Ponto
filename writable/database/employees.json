@@ -1,0 +1,74 @@
+[
+    {
+        "id": 1,
+        "name": "Administrador Teste",
+        "email": "admin@teste.com",
+        "password": "$2y$12$GTo\/nvM9yB3Ch0F4SqcEM..1XhHlEnKC\/wx\/yZMb8b0ZTXl3CUEaO",
+        "role": "admin",
+        "cpf": "123.456.789-00",
+        "phone": "(11) 99999-0000",
+        "department": "TI",
+        "active": 1,
+        "created_at": "2025-11-18 14:38:47"
+    },
+    {
+        "id": 2,
+        "name": "Gestor RH",
+        "email": "gestor@teste.com",
+        "password": "$2y$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8\/lewPAAa4pQRLfT4SG",
+        "role": "gestor",
+        "cpf": "987.654.321-00",
+        "phone": "(11) 98765-4322",
+        "department": "Recursos Humanos",
+        "active": 1,
+        "created_at": "2025-11-18 14:38:47"
+    },
+    {
+        "id": 3,
+        "name": "Jo\u00e3o Silva",
+        "email": "joao@teste.com",
+        "password": "$2y$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8\/lewPAAa4pQRLfT4SG",
+        "role": "funcionario",
+        "cpf": "111.222.333-44",
+        "phone": "(11) 98765-4323",
+        "department": "Opera\u00e7\u00f5es",
+        "active": 1,
+        "created_at": "2025-11-18 14:38:47"
+    },
+    {
+        "id": 4,
+        "name": "Maria Santos",
+        "email": "maria@teste.com",
+        "password": "$2y$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8\/lewPAAa4pQRLfT4SG",
+        "role": "funcionario",
+        "cpf": "555.666.777-88",
+        "phone": "(11) 98765-4324",
+        "department": "Vendas",
+        "active": 1,
+        "created_at": "2025-11-18 14:38:47"
+    },
+    {
+        "id": 5,
+        "name": "Pedro Oliveira",
+        "email": "pedro@teste.com",
+        "password": "$2y$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8\/lewPAAa4pQRLfT4SG",
+        "role": "funcionario",
+        "cpf": "999.888.777-66",
+        "phone": "(11) 98765-4325",
+        "department": "Opera\u00e7\u00f5es",
+        "active": 1,
+        "created_at": "2025-11-18 14:38:47"
+    },
+    {
+        "id": 6,
+        "name": "Teste Funcion\u00e1rio Atualizado",
+        "email": "novo@teste.com",
+        "password": "$2y$12$isalc4bDYt6NDmD.gAttkeO65EpUj8Hl.QpKEhtj9TIbeaNjJw1MS",
+        "role": "funcionario",
+        "cpf": "123.123.123-12",
+        "phone": "(11) 88888-8888",
+        "department": "Teste",
+        "active": 0,
+        "created_at": "2025-11-18 14:38:52"
+    }
+]
