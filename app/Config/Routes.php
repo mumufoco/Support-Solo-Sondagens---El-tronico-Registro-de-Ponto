@@ -11,6 +11,25 @@ $routes->get('/', 'Home::index');
 
 /*
  * --------------------------------------------------------------------
+ * Installation Routes (Public - only accessible when not installed)
+ * --------------------------------------------------------------------
+ */
+$routes->group('install', static function ($routes) {
+    $routes->get('/', 'InstallController::index');
+    $routes->get('requirements', 'InstallController::requirements');
+    $routes->get('database', 'InstallController::database');
+    $routes->post('test-database-connection', 'InstallController::testDatabaseConnection');
+    $routes->get('save-configuration', 'InstallController::saveConfiguration');
+    $routes->get('migrations', 'InstallController::migrations');
+    $routes->post('run-migrations', 'InstallController::runMigrations');
+    $routes->get('seed', 'InstallController::seedData');
+    $routes->post('run-seeder', 'InstallController::runSeeder');
+    $routes->get('finish', 'InstallController::finish');
+    $routes->get('force-reinstall', 'InstallController::forceReinstall');
+});
+
+/*
+ * --------------------------------------------------------------------
  * Health Check Routes (Public - for monitoring/CI/CD)
  * --------------------------------------------------------------------
  */
