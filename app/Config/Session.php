@@ -66,10 +66,18 @@ class Session extends BaseConfig
      *
      * Whether to match the user's IP address when reading the session data.
      *
+     * SECURITY FIX: Enabled to prevent session hijacking
+     * Sessions are bound to the IP address that created them
+     * This adds an extra layer of security by validating the client's IP
+     * matches the IP that originally created the session
+     *
      * WARNING: If you're using the database driver, don't forget to update
      *          your session table's PRIMARY KEY when changing this setting.
+     *
+     * Note: May cause issues with users behind proxies or mobile networks
+     * where IP addresses change frequently. Monitor and adjust if needed.
      */
-    public bool $matchIP = false;
+    public bool $matchIP = true;
 
     /**
      * --------------------------------------------------------------------------
@@ -86,10 +94,17 @@ class Session extends BaseConfig
      * --------------------------------------------------------------------------
      *
      * Whether to destroy session data associated with the old session ID
-     * when auto-regenerating the session ID. When set to FALSE, the data
-     * will be later deleted by the garbage collector.
+     * when auto-regenerating the session ID.
+     *
+     * SECURITY FIX: Enabled to prevent session fixation attacks
+     * When set to TRUE, old session data is immediately destroyed when
+     * regenerating session IDs. This prevents attackers from using old
+     * session IDs to hijack sessions.
+     *
+     * When set to FALSE, the data will be later deleted by the garbage
+     * collector, leaving a window of vulnerability.
      */
-    public bool $regenerateDestroy = false;
+    public bool $regenerateDestroy = true;
 
     /**
      * --------------------------------------------------------------------------

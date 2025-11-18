@@ -41,33 +41,64 @@ if (!function_exists('upload_chat_file')) {
             ];
         }
 
-        // Get file extension and MIME type
-        $extension = $file->getClientExtension();
-        $mimeType = $file->getClientMimeType();
+        // Get file extension and MIME type from client
+        $extension = strtolower($file->getClientExtension());
+        $clientMimeType = $file->getClientMimeType();
+
+        // SECURITY FIX: Validate actual file MIME type using finfo
+        // Don't trust client-provided MIME type (can be spoofed)
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $actualMimeType = finfo_file($finfo, $file->getTempName());
+        finfo_close($finfo);
 
         // Validate file type
         $allowedTypes = get_allowed_chat_file_types();
         $isAllowed = false;
         $fileType = null;
 
+        // Check both extension and ACTUAL MIME type
         foreach ($allowedTypes as $type => $config) {
-            if (in_array($extension, $config['extensions']) || in_array($mimeType, $config['mimes'])) {
+            // Extension must match
+            $extensionMatches = in_array($extension, $config['extensions']);
+
+            // ACTUAL MIME type must match (not client-provided)
+            $mimeMatches = in_array($actualMimeType, $config['mimes']);
+
+            if ($extensionMatches && $mimeMatches) {
                 $isAllowed = true;
                 $fileType = $type;
-
                 break;
             }
         }
 
         if (!$isAllowed) {
+            log_message('warning', "File upload rejected: extension={$extension}, client_mime={$clientMimeType}, actual_mime={$actualMimeType}, employee={$employeeId}");
+
             return [
                 'success'   => false,
-                'message'   => 'Tipo de arquivo não permitido.',
+                'message'   => 'Tipo de arquivo não permitido. O arquivo não corresponde ao tipo esperado.',
                 'file_path' => null,
                 'file_name' => null,
                 'file_size' => null,
                 'file_type' => null,
             ];
+        }
+
+        // SECURITY FIX: Additional validation for images to prevent malicious files
+        if ($fileType === 'image') {
+            $imageInfo = @getimagesize($file->getTempName());
+            if ($imageInfo === false) {
+                log_message('warning', "Invalid image file rejected: {$file->getClientName()}, employee={$employeeId}");
+
+                return [
+                    'success'   => false,
+                    'message'   => 'Arquivo de imagem inválido ou corrompido.',
+                    'file_path' => null,
+                    'file_name' => null,
+                    'file_size' => null,
+                    'file_type' => null,
+                ];
+            }
         }
 
         // Generate unique filename
