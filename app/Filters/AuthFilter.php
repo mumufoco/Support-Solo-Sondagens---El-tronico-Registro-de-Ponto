@@ -26,6 +26,12 @@ class AuthFilter implements FilterInterface
 
         // Check if user is authenticated
         if (!$session->get('user_id')) {
+            // SECURITY FIX: Try to authenticate via remember me cookie
+            if ($this->attemptRememberMeLogin($request, $session)) {
+                // Successfully logged in via remember me
+                return null; // Allow request to proceed
+            }
+
             // SECURITY FIX: Store intended URL with validation to prevent Open Redirect attacks
             // Validate that redirect URL is local and safe before storing
             $intendedUrl = current_url();
@@ -227,5 +233,105 @@ class AuthFilter implements FilterInterface
 
         // URL passed all validation checks
         return true;
+    }
+
+    /**
+     * SECURITY FIX: Attempt to authenticate user via remember me cookie
+     *
+     * Uses secure selector/verifier pattern with database verification
+     *
+     * @param RequestInterface $request
+     * @param object $session
+     * @return bool True if successfully authenticated, false otherwise
+     */
+    protected function attemptRememberMeLogin(RequestInterface $request, object $session): bool
+    {
+        // Check if remember_token cookie exists
+        $cookieValue = $_COOKIE['remember_token'] ?? null;
+
+        if (empty($cookieValue)) {
+            return false;
+        }
+
+        // Parse cookie value (format: selector:verifier)
+        $parts = explode(':', $cookieValue);
+
+        if (count($parts) !== 2) {
+            log_message('warning', 'Invalid remember_token cookie format');
+            $this->clearRememberMeCookie();
+            return false;
+        }
+
+        [$selector, $verifier] = $parts;
+
+        // Validate token using model
+        $rememberTokenModel = new \App\Models\RememberTokenModel();
+        $employee = $rememberTokenModel->validateToken($selector, $verifier);
+
+        if (!$employee) {
+            // Token invalid or expired
+            $this->clearRememberMeCookie();
+            return false;
+        }
+
+        // Token is valid - create session
+        $sessionData = [
+            'user_id'     => $employee->id,
+            'user_name'   => $employee->name,
+            'user_email'  => $employee->email,
+            'user_role'   => $employee->role,
+            'user_active' => $employee->active,
+            'logged_in'   => true,
+            'remember_me_login' => true, // Flag to indicate auto-login
+        ];
+
+        $session->set($sessionData);
+        $session->regenerate(); // Prevent session fixation
+
+        // Log the auto-login
+        log_message('info', "User {$employee->id} ({$employee->email}) auto-logged in via remember me token");
+
+        // Audit log
+        try {
+            $auditModel = new \App\Models\AuditLogModel();
+            $auditModel->log(
+                $employee->id,
+                'AUTO_LOGIN_REMEMBER_ME',
+                'employees',
+                $employee->id,
+                null,
+                [
+                    'ip_address' => get_client_ip(),
+                    'user_agent' => get_user_agent(),
+                ],
+                'Login automático via remember me cookie',
+                'info'
+            );
+        } catch (\Exception $e) {
+            log_message('error', 'Failed to log remember me auto-login: ' . $e->getMessage());
+        }
+
+        return true;
+    }
+
+    /**
+     * Clear remember me cookie
+     *
+     * @return void
+     */
+    protected function clearRememberMeCookie(): void
+    {
+        setcookie(
+            'remember_token',
+            '',
+            [
+                'expires'  => time() - 3600, // Expired
+                'path'     => '/',
+                'domain'   => '',
+                'secure'   => (ENVIRONMENT === 'production'),
+                'httponly' => true,
+                'samesite' => 'Strict',
+            ]
+        );
     }
 }

@@ -205,26 +205,41 @@ class LoginController extends BaseController
     }
 
     /**
-     * Set remember me cookie
+     * SECURITY FIX: Set secure remember me cookie
+     *
+     * Uses selector/verifier pattern with database storage
+     * Tokens are hashed in database for security
      */
     protected function setRememberMeCookie(int $userId): void
     {
-        $token = bin2hex(random_bytes(32));
+        $rememberTokenModel = new \App\Models\RememberTokenModel();
 
-        // Store token in session for 30 days
-        $this->session->set('remember_token', $token);
-        $this->session->markAsTempdata('remember_token', 2592000); // 30 days
+        // Generate secure token (returns selector and verifier)
+        $tokenData = $rememberTokenModel->generateToken($userId, 30); // 30 days
 
-        // Set cookie
+        if (!$tokenData) {
+            log_message('error', 'Failed to generate remember me token for user ' . $userId);
+            return;
+        }
+
+        // Combine selector:verifier for cookie storage
+        $cookieValue = $tokenData['selector'] . ':' . $tokenData['verifier'];
+
+        // Set cookie with security flags
         setcookie(
             'remember_token',
-            $token,
-            time() + 2592000, // 30 days
-            '/',
-            '',
-            true, // secure
-            true  // httponly
+            $cookieValue,
+            [
+                'expires'  => time() + (30 * 24 * 60 * 60), // 30 days
+                'path'     => '/',
+                'domain'   => '',
+                'secure'   => (ENVIRONMENT === 'production'), // HTTPS only in production
+                'httponly' => true, // Prevent JavaScript access
+                'samesite' => 'Strict', // CSRF protection
+            ]
         );
+
+        log_message('info', 'Remember me token created for employee ' . $userId);
     }
 
     /**
