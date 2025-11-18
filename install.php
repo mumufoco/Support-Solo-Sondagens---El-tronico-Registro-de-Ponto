@@ -64,6 +64,16 @@ function testConnection($data) {
             throw new Exception('Preencha todos os campos obrigatórios (Host, Database, Username)');
         }
 
+        // IMPORTANTE: Sempre retornar db_config no JSON (mesmo se falhar)
+        // Frontend salva no localStorage para enviar depois
+        $result['db_config'] = [
+            'host' => $host,
+            'port' => $port,
+            'database' => $database,
+            'username' => $username,
+            'password' => $password
+        ];
+
         $result['logs'][] = "🔍 Testando conexão: {$username}@{$host}:{$port}";
 
         // Tentar conectar ao servidor MySQL (sem database)
@@ -111,12 +121,11 @@ function testConnection($data) {
             $result['logs'][] = "";
             $result['has_tables'] = true;
             $result['table_count'] = $tableCount;
-
-            // Salvar na sessão
-            $_SESSION['existing_tables'] = $tables;
+            $result['existing_tables'] = $tables; // Retornar no JSON
         } else {
             $result['logs'][] = "✅ Database vazio (pronto para instalação)";
             $result['has_tables'] = false;
+            $result['existing_tables'] = [];
         }
 
         // Testar permissões
@@ -124,15 +133,6 @@ function testConnection($data) {
         $pdo->exec("CREATE TABLE `{$testTable}` (id INT)");
         $pdo->exec("DROP TABLE `{$testTable}`");
         $result['logs'][] = "✅ Permissões CREATE/DROP validadas";
-
-        // Salvar credenciais na sessão
-        $_SESSION['db_config'] = [
-            'host' => $host,
-            'port' => $port,
-            'database' => $database,
-            'username' => $username,
-            'password' => $password
-        ];
 
         $result['success'] = true;
         $result['message'] = '✅ Conexão testada com sucesso!';
@@ -149,9 +149,17 @@ function testConnection($data) {
         } elseif ($e->getCode() == 1044) {
             $result['logs'][] = "💡 Dica: Usuário precisa de permissão CREATE DATABASE";
         }
+
+        // Mesmo com erro, retornar arrays vazios
+        $result['existing_tables'] = [];
+        $result['has_tables'] = false;
     } catch (Exception $e) {
         $result['message'] = '❌ Erro: ' . $e->getMessage();
         $result['logs'][] = "❌ " . $e->getMessage();
+
+        // Mesmo com erro, retornar arrays vazios
+        $result['existing_tables'] = [];
+        $result['has_tables'] = false;
     }
 
     return $result;
@@ -168,12 +176,27 @@ function runInstallation($data) {
     ];
 
     try {
-        // Verificar se tem config na sessão
-        if (!isset($_SESSION['db_config'])) {
-            throw new Exception('Configuração do banco não encontrada. Teste a conexão primeiro.');
+        // Receber config do MySQL via POST (não mais da sessão!)
+        $dbHost = trim($data['db_host'] ?? '');
+        $dbPort = trim($data['db_port'] ?? '3306');
+        $dbDatabase = trim($data['db_database'] ?? '');
+        $dbUsername = trim($data['db_username'] ?? '');
+        $dbPassword = $data['db_password'] ?? '';
+        $existingTables = isset($data['existing_tables']) ? json_decode($data['existing_tables'], true) : [];
+
+        // Validar dados do MySQL
+        if (empty($dbHost) || empty($dbDatabase) || empty($dbUsername)) {
+            throw new Exception('Dados do MySQL não fornecidos. Teste a conexão primeiro.');
         }
 
-        $config = $_SESSION['db_config'];
+        $config = [
+            'host' => $dbHost,
+            'port' => $dbPort,
+            'database' => $dbDatabase,
+            'username' => $dbUsername,
+            'password' => $dbPassword
+        ];
+
         $adminName = trim($data['admin_name'] ?? 'Administrador');
         $adminEmail = trim($data['admin_email'] ?? '');
         $adminPassword = $data['admin_password'] ?? '';
@@ -201,13 +224,13 @@ function runInstallation($data) {
         $result['logs'][] = "✅ Conectado ao database: {$config['database']}";
 
         // PASSO 1: Limpar banco se necessário
-        if (isset($_SESSION['existing_tables']) && count($_SESSION['existing_tables']) > 0) {
+        if (count($existingTables) > 0) {
             $result['logs'][] = "";
             $result['logs'][] = "🗑️  Removendo tabelas existentes...";
 
             $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
 
-            foreach ($_SESSION['existing_tables'] as $table) {
+            foreach ($existingTables as $table) {
                 try {
                     $pdo->exec("DROP TABLE IF EXISTS `{$table}`");
                     $result['logs'][] = "  ✓ Removida: {$table}";
@@ -393,10 +416,6 @@ function runInstallation($data) {
 
         $result['logs'][] = "✅ Sistema marcado como instalado!";
         $result['logs'][] = "";
-
-        // Limpar sessão
-        unset($_SESSION['db_config']);
-        unset($_SESSION['existing_tables']);
 
         $result['logs'][] = "🎉 INSTALAÇÃO CONCLUÍDA COM SUCESSO!";
         $result['logs'][] = "";
@@ -897,6 +916,10 @@ ENV;
                 connectionTested = true;
                 hasExistingTables = data.has_tables || false;
 
+                // IMPORTANTE: Salvar dados do MySQL no localStorage
+                localStorage.setItem('db_config', JSON.stringify(data.db_config));
+                localStorage.setItem('existing_tables', JSON.stringify(data.existing_tables || []));
+
                 const finalMsg = document.createElement('div');
                 finalMsg.style.marginTop = '15px';
                 finalMsg.style.fontSize = '16px';
@@ -992,14 +1015,34 @@ ENV;
         btn.disabled = true;
         document.getElementById('btn-back').disabled = true;
 
+        // IMPORTANTE: Recuperar dados do MySQL do localStorage
+        const dbConfig = JSON.parse(localStorage.getItem('db_config') || '{}');
+        const existingTables = localStorage.getItem('existing_tables') || '[]';
+
+        if (!dbConfig.host || !dbConfig.database) {
+            alert('Dados do MySQL não encontrados. Volte e teste a conexão novamente.');
+            btn.disabled = false;
+            document.getElementById('btn-back').disabled = false;
+            loading.classList.remove('active');
+            return;
+        }
+
         fetch('install.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({
                 action: 'run_installation',
+                // Dados do admin
                 admin_name: document.getElementById('admin_name').value,
                 admin_email: document.getElementById('admin_email').value,
-                admin_password: password
+                admin_password: password,
+                // Dados do MySQL (do localStorage)
+                db_host: dbConfig.host,
+                db_port: dbConfig.port,
+                db_database: dbConfig.database,
+                db_username: dbConfig.username,
+                db_password: dbConfig.password,
+                existing_tables: existingTables
             })
         })
         .then(res => res.json())

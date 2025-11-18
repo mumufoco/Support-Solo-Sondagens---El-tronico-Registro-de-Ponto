@@ -64,6 +64,16 @@ function testConnection($data) {
             throw new Exception('Preencha todos os campos obrigatórios (Host, Database, Username)');
         }
 
+        // IMPORTANTE: Sempre retornar db_config no JSON (mesmo se falhar)
+        // Frontend salva no localStorage para enviar depois
+        $result['db_config'] = [
+            'host' => $host,
+            'port' => $port,
+            'database' => $database,
+            'username' => $username,
+            'password' => $password
+        ];
+
         $result['logs'][] = "🔍 Testando conexão: {$username}@{$host}:{$port}";
 
         // Tentar conectar ao servidor MySQL (sem database)
@@ -111,12 +121,11 @@ function testConnection($data) {
             $result['logs'][] = "";
             $result['has_tables'] = true;
             $result['table_count'] = $tableCount;
-
-            // Salvar na sessão
-            $_SESSION['existing_tables'] = $tables;
+            $result['existing_tables'] = $tables; // Retornar no JSON
         } else {
             $result['logs'][] = "✅ Database vazio (pronto para instalação)";
             $result['has_tables'] = false;
+            $result['existing_tables'] = [];
         }
 
         // Testar permissões
@@ -124,15 +133,6 @@ function testConnection($data) {
         $pdo->exec("CREATE TABLE `{$testTable}` (id INT)");
         $pdo->exec("DROP TABLE `{$testTable}`");
         $result['logs'][] = "✅ Permissões CREATE/DROP validadas";
-
-        // Salvar credenciais na sessão
-        $_SESSION['db_config'] = [
-            'host' => $host,
-            'port' => $port,
-            'database' => $database,
-            'username' => $username,
-            'password' => $password
-        ];
 
         $result['success'] = true;
         $result['message'] = '✅ Conexão testada com sucesso!';
@@ -149,9 +149,17 @@ function testConnection($data) {
         } elseif ($e->getCode() == 1044) {
             $result['logs'][] = "💡 Dica: Usuário precisa de permissão CREATE DATABASE";
         }
+
+        // Mesmo com erro, retornar arrays vazios
+        $result['existing_tables'] = [];
+        $result['has_tables'] = false;
     } catch (Exception $e) {
         $result['message'] = '❌ Erro: ' . $e->getMessage();
         $result['logs'][] = "❌ " . $e->getMessage();
+
+        // Mesmo com erro, retornar arrays vazios
+        $result['existing_tables'] = [];
+        $result['has_tables'] = false;
     }
 
     return $result;
@@ -168,12 +176,27 @@ function runInstallation($data) {
     ];
 
     try {
-        // Verificar se tem config na sessão
-        if (!isset($_SESSION['db_config'])) {
-            throw new Exception('Configuração do banco não encontrada. Teste a conexão primeiro.');
+        // IMPORTANTE: Receber dados do MySQL via POST (não usar sessão)
+        $dbHost = trim($data['db_host'] ?? '');
+        $dbPort = trim($data['db_port'] ?? '3306');
+        $dbDatabase = trim($data['db_database'] ?? '');
+        $dbUsername = trim($data['db_username'] ?? '');
+        $dbPassword = $data['db_password'] ?? '';
+        $existingTables = isset($data['existing_tables']) ? json_decode($data['existing_tables'], true) : [];
+
+        // Validar dados do MySQL
+        if (empty($dbHost) || empty($dbDatabase) || empty($dbUsername)) {
+            throw new Exception('Dados do MySQL não fornecidos. Volte e teste a conexão primeiro.');
         }
 
-        $config = $_SESSION['db_config'];
+        $config = [
+            'host' => $dbHost,
+            'port' => $dbPort,
+            'database' => $dbDatabase,
+            'username' => $dbUsername,
+            'password' => $dbPassword
+        ];
+
         $adminName = trim($data['admin_name'] ?? 'Administrador');
         $adminEmail = trim($data['admin_email'] ?? '');
         $adminPassword = $data['admin_password'] ?? '';
@@ -201,13 +224,13 @@ function runInstallation($data) {
         $result['logs'][] = "✅ Conectado ao database: {$config['database']}";
 
         // PASSO 1: Limpar banco se necessário
-        if (isset($_SESSION['existing_tables']) && count($_SESSION['existing_tables']) > 0) {
+        if (!empty($existingTables) && is_array($existingTables) && count($existingTables) > 0) {
             $result['logs'][] = "";
             $result['logs'][] = "🗑️  Removendo tabelas existentes...";
 
             $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
 
-            foreach ($_SESSION['existing_tables'] as $table) {
+            foreach ($existingTables as $table) {
                 try {
                     $pdo->exec("DROP TABLE IF EXISTS `{$table}`");
                     $result['logs'][] = "  ✓ Removida: {$table}";
