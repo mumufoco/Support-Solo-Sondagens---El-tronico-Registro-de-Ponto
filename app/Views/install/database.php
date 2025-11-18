@@ -171,11 +171,46 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 finalMsg.style.color = '#10b981';
                 connectionTested = true;
-                continueBtn.disabled = false;
 
                 // Mudar texto do botão de teste
                 testBtn.textContent = '✓ Conexão Testada com Sucesso';
                 testBtn.style.background = '#10b981';
+
+                // IMPORTANTE: Verificar se há warning sobre banco existente
+                if (data.warning && data.existing_tables > 0) {
+                    // Mostrar alerta de confirmação
+                    consoleOutput.appendChild(finalMsg);
+
+                    const warningBox = document.createElement('div');
+                    warningBox.className = 'alert alert-error';
+                    warningBox.style.marginTop = '20px';
+                    warningBox.style.fontSize = '16px';
+                    warningBox.innerHTML = `
+                        <strong>⚠️ ATENÇÃO: BANCO DE DADOS JÁ CONTÉM ${data.existing_tables} TABELA(S)!</strong><br><br>
+                        A instalação irá <strong>APAGAR TODAS AS TABELAS E DADOS EXISTENTES</strong>.<br><br>
+                        <strong>Esta ação é IRREVERSÍVEL!</strong><br><br>
+                        <label style="display: flex; align-items: center; gap: 10px; margin-top: 15px; cursor: pointer;">
+                            <input type="checkbox" id="confirm-cleanup" style="width: 20px; height: 20px;">
+                            <span>Eu entendo que TODOS OS DADOS serão perdidos e desejo continuar</span>
+                        </label>
+                    `;
+                    consoleOutput.appendChild(warningBox);
+
+                    // Desabilitar botão até confirmar
+                    continueBtn.disabled = true;
+
+                    // Habilitar botão somente quando checkbox for marcado
+                    const confirmCheckbox = document.getElementById('confirm-cleanup');
+                    confirmCheckbox.addEventListener('change', function() {
+                        continueBtn.disabled = !this.checked;
+                    });
+
+                } else {
+                    // Banco vazio, pode prosseguir
+                    continueBtn.disabled = false;
+                    consoleOutput.appendChild(finalMsg);
+                }
+
             } else {
                 finalMsg.style.color = '#ef4444';
                 connectionTested = false;
@@ -183,9 +218,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 testBtn.textContent = 'Testar Conexão com MySQL';
                 testBtn.style.background = '#10b981';
+                consoleOutput.appendChild(finalMsg);
             }
 
-            consoleOutput.appendChild(finalMsg);
             consoleOutput.scrollTop = consoleOutput.scrollHeight;
         })
         .catch(error => {

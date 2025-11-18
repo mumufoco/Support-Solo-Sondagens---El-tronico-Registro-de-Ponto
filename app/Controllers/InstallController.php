@@ -134,6 +134,30 @@ class InstallController extends Controller
                 \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION
             ]);
 
+            // IMPORTANTE: Verificar se o banco já tem tabelas
+            $stmt = $pdo->query("SHOW TABLES");
+            $existingTables = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+            $tableCount = count($existingTables);
+
+            if ($tableCount > 0) {
+                $response['details'][] = "⚠️ ATENÇÃO: O banco já contém {$tableCount} tabela(s):";
+                $response['details'][] = "Tabelas: " . implode(', ', array_slice($existingTables, 0, 10)) . ($tableCount > 10 ? '...' : '');
+                $response['details'][] = "";
+                $response['details'][] = "⚠️ A instalação irá LIMPAR todas as tabelas existentes!";
+                $response['details'][] = "⚠️ TODOS OS DADOS SERÃO PERDIDOS!";
+                $response['details'][] = "";
+
+                // Salvar informação de que precisa limpar
+                $this->session->set('install_needs_cleanup', true);
+                $this->session->set('install_existing_tables', $existingTables);
+
+                $response['warning'] = true;
+                $response['existing_tables'] = $tableCount;
+            } else {
+                $response['details'][] = "✅ Banco de dados vazio (pronto para instalação).";
+                $this->session->set('install_needs_cleanup', false);
+            }
+
             // Testar permissões CREATE TABLE
             $testTable = '_install_test_' . time();
             $pdo->exec("CREATE TABLE IF NOT EXISTS `{$testTable}` (id INT)");
@@ -262,6 +286,38 @@ class InstallController extends Controller
 
             $response['details'][] = "✅ Conexão com banco estabelecida.";
 
+            // IMPORTANTE: Verificar se precisa limpar banco existente
+            $needsCleanup = $this->session->get('install_needs_cleanup');
+            $existingTables = $this->session->get('install_existing_tables') ?: [];
+
+            if ($needsCleanup && count($existingTables) > 0) {
+                $response['details'][] = "";
+                $response['details'][] = "⚠️ Limpando banco de dados existente...";
+                $response['details'][] = "Tabelas a remover: " . count($existingTables);
+
+                // Desabilitar foreign key checks
+                $db->query('SET FOREIGN_KEY_CHECKS = 0');
+                $response['details'][] = "✅ Foreign key checks desabilitados.";
+
+                // Dropar todas as tabelas existentes
+                foreach ($existingTables as $table) {
+                    try {
+                        $db->query("DROP TABLE IF EXISTS `{$table}`");
+                        $response['details'][] = "  ✓ Tabela '{$table}' removida.";
+                    } catch (\Exception $e) {
+                        $response['details'][] = "  ⚠️ Erro ao remover '{$table}': " . $e->getMessage();
+                    }
+                }
+
+                // Reabilitar foreign key checks
+                $db->query('SET FOREIGN_KEY_CHECKS = 1');
+                $response['details'][] = "✅ Banco de dados limpo com sucesso!";
+                $response['details'][] = "";
+            }
+
+            // SEMPRE desabilitar foreign key checks durante migrations para evitar problemas de ordem
+            $db->query('SET FOREIGN_KEY_CHECKS = 0');
+
             // Listar arquivos de migration
             $migrationsPath = APPPATH . 'Database/Migrations/';
             $migrationFiles = glob($migrationsPath . '*.php');
@@ -275,6 +331,9 @@ class InstallController extends Controller
                 $migrate->latest();
                 $response['details'][] = "✅ Todas as migrations executadas com sucesso!";
 
+                // Reabilitar foreign key checks
+                $db->query('SET FOREIGN_KEY_CHECKS = 1');
+
                 // Verificar tabelas criadas
                 $tables = $db->listTables();
                 $response['details'][] = "Tabelas criadas: " . implode(', ', $tables);
@@ -285,6 +344,8 @@ class InstallController extends Controller
                 $response['message'] = '✅ Estrutura do banco de dados criada com sucesso!';
 
             } catch (\Exception $e) {
+                // Reabilitar foreign key checks mesmo em caso de erro
+                $db->query('SET FOREIGN_KEY_CHECKS = 1');
                 throw new \Exception('Erro ao executar migrations: ' . $e->getMessage());
             }
 
