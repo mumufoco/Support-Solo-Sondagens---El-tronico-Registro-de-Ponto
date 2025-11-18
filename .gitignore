@@ -45,6 +45,8 @@ $RECYCLE.BIN/
 .env.*
 .env.backup*
 !.env.example
+.env.credentials
+get-docker.sh
 .vagrant
 Vagrantfile
 
