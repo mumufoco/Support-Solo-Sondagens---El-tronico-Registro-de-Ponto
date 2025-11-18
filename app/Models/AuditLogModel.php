@@ -34,9 +34,7 @@ class AuditLogModel extends Model
     protected $updatedField  = false; // Audit logs are immutable
 
     // Callbacks
-    protected $allowCallbacks = true;
-    protected $beforeInsert   = ['encodeValues'];
-    protected $afterFind      = ['decodeValues'];
+    protected $allowCallbacks = false; // DISABLED: Causing type errors in PHP 8.4+
 
     /**
      * Encode values arrays to JSON
@@ -100,8 +98,8 @@ class AuditLogModel extends Model
             'action'      => strtoupper($action),
             'entity_type' => $entityType,
             'entity_id'   => $entityId,
-            'old_values'  => $oldValues,
-            'new_values'  => $newValues,
+            'old_values'  => $oldValues ? json_encode($oldValues) : null,
+            'new_values'  => $newValues ? json_encode($newValues) : null,
             'ip_address'  => $_SERVER['REMOTE_ADDR'] ?? null,
             'user_agent'  => $_SERVER['HTTP_USER_AGENT'] ?? null,
             'url'         => $_SERVER['REQUEST_URI'] ?? null,

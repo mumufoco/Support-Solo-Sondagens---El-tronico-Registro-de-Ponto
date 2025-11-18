@@ -36,6 +36,13 @@ class RateLimitFilter implements FilterInterface
     protected RateLimitService $rateLimitService;
 
     /**
+     * Temporary storage for rate limit headers
+     * (Avoids dynamic property deprecation warning in PHP 8.2+)
+     * @var array
+     */
+    protected array $rateLimitHeaders = [];
+
+    /**
      * Endpoint-to-limit-type mapping
      *
      * Maps URL patterns to rate limit types defined in RateLimitService
@@ -102,8 +109,8 @@ class RateLimitFilter implements FilterInterface
         // Attempt to perform action (check and increment)
         $limitInfo = $this->rateLimitService->attempt($key, $limitType, $ip);
 
-        // Store headers to add in after()
-        $request->rateLimitHeaders = $this->rateLimitService->getHeaders($limitInfo);
+        // Store headers to add in after() (using class property to avoid PHP 8.2+ deprecation warning)
+        $this->rateLimitHeaders = $this->rateLimitService->getHeaders($limitInfo);
 
         // Check if rate limit exceeded
         if (!$limitInfo['allowed']) {
@@ -131,9 +138,9 @@ class RateLimitFilter implements FilterInterface
      */
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
     {
-        // Add rate limit headers if available
-        if (isset($request->rateLimitHeaders)) {
-            foreach ($request->rateLimitHeaders as $header => $value) {
+        // Add rate limit headers if available (using class property instead of request property)
+        if (!empty($this->rateLimitHeaders)) {
+            foreach ($this->rateLimitHeaders as $header => $value) {
                 $response->setHeader($header, (string) $value);
             }
         }
