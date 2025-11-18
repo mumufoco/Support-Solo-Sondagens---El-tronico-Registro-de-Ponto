@@ -99,13 +99,23 @@ class App extends BaseConfig
 
     /**
      * Cookie Settings
+     *
+     * SECURITY FIX: Hardened cookie configuration
      */
-    public string $cookiePrefix   = '';
+    public string $cookiePrefix   = 'pe_';  // Prefix to avoid cookie conflicts
     public string $cookieDomain  = '';
     public string $cookiePath    = '/';
-    public bool   $cookieSecure  = false;
+
+    // SECURITY FIX: Force secure cookies in production
+    // Prevents transmission of cookies over unencrypted connections
+    public bool   $cookieSecure  = (ENVIRONMENT === 'production');
+
+    // HTTPOnly prevents JavaScript access to cookies (XSS mitigation)
     public bool   $cookieHTTPOnly = true;
-    public ?string $cookieSameSite = 'Lax';
+
+    // SECURITY FIX: Strict SameSite policy to prevent CSRF
+    // Cookies won't be sent on cross-site requests
+    public ?string $cookieSameSite = 'Strict';
 
     /**
      * Reverse Proxy IPs

@@ -54,9 +54,58 @@ class Exceptions extends BaseConfig
      * In order to specify 2 levels, use "/" to separate.
      * ex. ['server', 'setup/password', 'secret_token']
      *
+     * SECURITY FIX: Hide sensitive data from debug traces and error pages
+     * Prevents exposure of passwords, tokens, and other sensitive information
+     * in production error pages and logs
+     *
      * @var list<string>
      */
-    public array $sensitiveDataInTrace = [];
+    public array $sensitiveDataInTrace = [
+        // Server variables
+        'server/HTTP_AUTHORIZATION',
+        'server/PHP_AUTH_PW',
+        'server/PHP_AUTH_USER',
+
+        // Environment variables
+        'env/encryption.key',
+        'env/database.default.password',
+        'env/database.default.username',
+        'env/app.encryption.key',
+        'env/JWT_SECRET',
+        'env/API_KEY',
+
+        // Request data
+        'password',
+        'passwd',
+        'pwd',
+        'secret',
+        'token',
+        'api_key',
+        'apikey',
+        'access_token',
+        'refresh_token',
+        'auth_token',
+        'authorization',
+        'csrf_token',
+        'encryption_key',
+        'private_key',
+        'credit_card',
+        'card_number',
+        'cvv',
+        'cvc',
+        'biometric_data',
+        'template_data',
+        'remember_token',
+
+        // Database credentials
+        'setup/password',
+        'config/database',
+
+        // Session data
+        'session/password',
+        'session/token',
+        'session/api_key',
+    ];
 
     /**
      * --------------------------------------------------------------------------

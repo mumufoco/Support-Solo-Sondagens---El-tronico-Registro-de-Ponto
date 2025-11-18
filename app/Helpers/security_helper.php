@@ -395,3 +395,169 @@ if (!function_exists('decrypt_data')) {
         }
     }
 }
+
+if (!function_exists('sanitize_for_log')) {
+    /**
+     * SECURITY FIX: Sanitize data before logging to prevent sensitive data leaks
+     *
+     * Removes or masks sensitive information before writing to logs.
+     * This prevents accidental exposure of passwords, tokens, credit cards, etc.
+     *
+     * @param mixed $data The data to sanitize (string, array, or object)
+     * @return mixed Sanitized data
+     */
+    function sanitize_for_log($data)
+    {
+        // Handle different data types
+        if (is_string($data)) {
+            return sanitize_string_for_log($data);
+        }
+
+        if (is_array($data)) {
+            return sanitize_array_for_log($data);
+        }
+
+        if (is_object($data)) {
+            return sanitize_array_for_log((array) $data);
+        }
+
+        return $data;
+    }
+}
+
+if (!function_exists('sanitize_string_for_log')) {
+    /**
+     * Sanitize a string value for logging
+     *
+     * @param string $value
+     * @return string
+     */
+    function sanitize_string_for_log(string $value): string
+    {
+        // List of patterns to detect and mask
+        $sensitivePatterns = [
+            // Credit card numbers (basic pattern)
+            '/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/' => '****-****-****-****',
+
+            // CPF (Brazilian tax ID)
+            '/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/' => '***.***.***-**',
+            '/\b\d{11}\b/' => '***********',
+
+            // Email addresses
+            '/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/' => '[EMAIL_REDACTED]',
+
+            // Tokens/API keys (long alphanumeric strings)
+            '/\b[A-Za-z0-9]{32,}\b/' => '[TOKEN_REDACTED]',
+
+            // IP addresses
+            '/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/' => '[IP_REDACTED]',
+        ];
+
+        foreach ($sensitivePatterns as $pattern => $replacement) {
+            $value = preg_replace($pattern, $replacement, $value);
+        }
+
+        return $value;
+    }
+}
+
+if (!function_exists('sanitize_array_for_log')) {
+    /**
+     * Sanitize an array for logging (recursively)
+     *
+     * @param array $data
+     * @return array
+     */
+    function sanitize_array_for_log(array $data): array
+    {
+        // Sensitive keys to redact (case-insensitive)
+        $sensitiveKeys = [
+            'password',
+            'passwd',
+            'pwd',
+            'secret',
+            'token',
+            'api_key',
+            'apikey',
+            'access_token',
+            'refresh_token',
+            'auth_token',
+            'authorization',
+            'csrf_token',
+            'encryption_key',
+            'private_key',
+            'credit_card',
+            'card_number',
+            'cvv',
+            'cvc',
+            'ssn',
+            'social_security',
+            'biometric_data',
+            'template_data',
+            'remember_token',
+        ];
+
+        $sanitized = [];
+
+        foreach ($data as $key => $value) {
+            $keyLower = strtolower($key);
+
+            // Check if key is sensitive
+            $isSensitive = false;
+            foreach ($sensitiveKeys as $sensitiveKey) {
+                if (strpos($keyLower, $sensitiveKey) !== false) {
+                    $isSensitive = true;
+                    break;
+                }
+            }
+
+            if ($isSensitive) {
+                // Redact sensitive values
+                $sanitized[$key] = '[REDACTED]';
+            } elseif (is_array($value)) {
+                // Recursively sanitize nested arrays
+                $sanitized[$key] = sanitize_array_for_log($value);
+            } elseif (is_object($value)) {
+                // Convert object to array and sanitize
+                $sanitized[$key] = sanitize_array_for_log((array) $value);
+            } elseif (is_string($value)) {
+                // Sanitize string values
+                $sanitized[$key] = sanitize_string_for_log($value);
+            } else {
+                // Keep other types as-is
+                $sanitized[$key] = $value;
+            }
+        }
+
+        return $sanitized;
+    }
+}
+
+if (!function_exists('safe_log')) {
+    /**
+     * SECURITY FIX: Log message with automatic sanitization of sensitive data
+     *
+     * Wrapper around log_message() that automatically sanitizes data
+     *
+     * @param string $level Log level (error, warning, info, debug, etc.)
+     * @param string $message Log message
+     * @param array $context Additional context data
+     * @return void
+     */
+    function safe_log(string $level, string $message, array $context = []): void
+    {
+        // Sanitize message
+        $safeMessage = sanitize_string_for_log($message);
+
+        // Sanitize context
+        $safeContext = sanitize_array_for_log($context);
+
+        // If context is provided, append it to message
+        if (!empty($safeContext)) {
+            $safeMessage .= ' | Context: ' . json_encode($safeContext);
+        }
+
+        // Log with CodeIgniter's log_message
+        log_message($level, $safeMessage);
+    }
+}
