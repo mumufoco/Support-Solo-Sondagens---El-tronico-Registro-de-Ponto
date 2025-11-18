@@ -78,7 +78,7 @@ class CreateDataExportsTable extends Migration
         ]);
 
         $this->forge->addKey('id', true);
-        $this->forge->addKey('export_id');
+        // export_id already has unique index from field definition
         $this->forge->addKey('employee_id');
         $this->forge->addKey('status');
         $this->forge->addKey('expires_at');

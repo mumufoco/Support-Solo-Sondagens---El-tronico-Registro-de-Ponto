@@ -113,7 +113,7 @@ class CreateCompaniesTable extends Migration
         ]);
 
         $this->forge->addKey('id', true);
-        $this->forge->addKey('cnpj');
+        // cnpj already has unique index from field definition
         $this->forge->addKey('active');
 
         $this->forge->createTable('companies');

@@ -106,7 +106,7 @@ class CreateReportQueueTable extends Migration
         ]);
 
         $this->forge->addKey('id', true);
-        $this->forge->addKey('job_id');
+        // job_id already has unique index from field definition
         $this->forge->addKey(['status', 'created_at']);
         $this->forge->addKey('employee_id');
 

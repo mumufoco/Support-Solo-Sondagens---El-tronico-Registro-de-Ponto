@@ -109,9 +109,7 @@ class CreateEmployeesTable extends Migration
         ]);
 
         $this->forge->addKey('id', true);
-        $this->forge->addKey('email');
-        $this->forge->addKey('cpf');
-        $this->forge->addKey('unique_code');
+        // email, cpf, and unique_code already have unique indexes from field definitions
         $this->forge->addKey(['role', 'active']);
         $this->forge->addKey('department');
 
