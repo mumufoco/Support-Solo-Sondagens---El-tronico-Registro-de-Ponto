@@ -55,10 +55,13 @@ class Filters extends BaseConfig
                 'timesheet/index',
             ]],
 
-            // Rate limiting for auth routes
+            // SECURITY FIX: Rate limiting for auth routes including password reset
+            // Prevents brute force attacks on authentication and password recovery
             'ratelimit:auth' => ['filter' => [
                 'auth/login',
                 'auth/register',
+                'auth/forgot-password',
+                'auth/reset-password',
             ]],
 
             // Rate limiting for punch routes

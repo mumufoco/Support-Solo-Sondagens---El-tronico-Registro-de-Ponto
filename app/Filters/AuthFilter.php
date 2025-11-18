@@ -26,8 +26,16 @@ class AuthFilter implements FilterInterface
 
         // Check if user is authenticated
         if (!$session->get('user_id')) {
-            // Store intended URL for redirect after login
-            $session->set('redirect_url', current_url());
+            // SECURITY FIX: Store intended URL with validation to prevent Open Redirect attacks
+            // Validate that redirect URL is local and safe before storing
+            $intendedUrl = current_url();
+            if ($this->isValidRedirectUrl($intendedUrl)) {
+                $session->set('redirect_url', $intendedUrl);
+            } else {
+                // If URL is not valid, don't store it - will redirect to default dashboard
+                log_message('security', 'Invalid redirect URL blocked: ' . $intendedUrl);
+                $session->remove('redirect_url');
+            }
 
             // Check if it's an AJAX/API request
             if ($request->isAJAX() || $this->isApiRequest($request)) {
@@ -132,5 +140,92 @@ class AuthFilter implements FilterInterface
         }
 
         return false;
+    }
+
+    /**
+     * Validate redirect URL to prevent Open Redirect attacks
+     *
+     * @param string $url
+     * @return bool
+     */
+    protected function isValidRedirectUrl(string $url): bool
+    {
+        // Empty URLs are not valid
+        if (empty($url)) {
+            return false;
+        }
+
+        // Parse the URL
+        $parsedUrl = parse_url($url);
+
+        // If parse_url fails, reject
+        if ($parsedUrl === false) {
+            return false;
+        }
+
+        // Get the base URL from environment
+        $baseUrl = base_url();
+        $parsedBaseUrl = parse_url($baseUrl);
+
+        // If URL has a scheme or host, verify it matches our base URL
+        if (isset($parsedUrl['scheme']) || isset($parsedUrl['host'])) {
+            // Check scheme matches (both http or both https)
+            if (isset($parsedUrl['scheme']) &&
+                (!isset($parsedBaseUrl['scheme']) || $parsedUrl['scheme'] !== $parsedBaseUrl['scheme'])) {
+                return false;
+            }
+
+            // Check host matches exactly
+            if (isset($parsedUrl['host']) &&
+                (!isset($parsedBaseUrl['host']) || $parsedUrl['host'] !== $parsedBaseUrl['host'])) {
+                return false;
+            }
+
+            // Check port matches if present
+            if (isset($parsedUrl['port']) &&
+                (!isset($parsedBaseUrl['port']) || $parsedUrl['port'] !== $parsedBaseUrl['port'])) {
+                // Default ports: 80 for http, 443 for https
+                $defaultPort = ($parsedUrl['scheme'] ?? 'http') === 'https' ? 443 : 80;
+                $basePort = $parsedBaseUrl['port'] ?? $defaultPort;
+
+                if ($parsedUrl['port'] !== $basePort) {
+                    return false;
+                }
+            }
+        }
+
+        // Check for dangerous paths
+        $path = $parsedUrl['path'] ?? '/';
+
+        // Block paths that could be used for attacks
+        $blockedPaths = [
+            '/auth/login',      // Don't redirect back to login
+            '/auth/logout',     // Don't redirect back to logout
+            '/auth/register',   // Don't redirect to registration
+        ];
+
+        foreach ($blockedPaths as $blockedPath) {
+            if (strpos($path, $blockedPath) === 0) {
+                return false;
+            }
+        }
+
+        // Block suspicious query parameters that might indicate redirect attacks
+        if (isset($parsedUrl['query'])) {
+            parse_str($parsedUrl['query'], $queryParams);
+
+            // Check for common redirect parameter names
+            $suspiciousParams = ['redirect', 'return', 'returnurl', 'return_url', 'next', 'url', 'goto'];
+            foreach ($suspiciousParams as $param) {
+                if (isset($queryParams[$param])) {
+                    // If there's a redirect parameter in the URL, it might be a chain attack
+                    log_message('security', 'Suspicious redirect parameter detected in URL: ' . $param);
+                    return false;
+                }
+            }
+        }
+
+        // URL passed all validation checks
+        return true;
     }
 }
