@@ -382,19 +382,27 @@ class ChatController extends BaseController
             throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
         }
 
-        // Validate file access
-        if (!validate_file_access($filePath, $employee['id'])) {
+        // SECURITY FIX: Prevent path traversal attacks
+        // Resolve the full path and validate it's within WRITEPATH
+        $fullPath = realpath(WRITEPATH . $filePath);
+
+        // Check if realpath succeeded and path is within WRITEPATH
+        if ($fullPath === false || strpos($fullPath, realpath(WRITEPATH)) !== 0) {
+            log_message('security', 'Path traversal attempt detected: ' . $filePath . ' by employee ' . $employee['id']);
             throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
         }
 
-        $fullPath = WRITEPATH . $filePath;
+        // Validate file access permission
+        if (!validate_file_access($filePath, $employee['id'])) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
+        }
 
         if (!file_exists($fullPath)) {
             throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
         }
 
         // Return file
-        return $this->response->download($fullPath, null)->setFileName(basename($filePath));
+        return $this->response->download($fullPath, null)->setFileName(basename($fullPath));
     }
 
     /**

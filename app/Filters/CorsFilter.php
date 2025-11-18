@@ -64,13 +64,18 @@ class CorsFilter implements FilterInterface
         $allowedOrigins = $this->getAllowedOrigins();
         $requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
-        // Check if origin is allowed
-        if (in_array($requestOrigin, $allowedOrigins) || in_array('*', $allowedOrigins)) {
-            $response->setHeader('Access-Control-Allow-Origin', $requestOrigin ?: '*');
+        // SECURITY FIX: Cannot use wildcard (*) with credentials
+        // Only set CORS headers if we have a valid origin
+        if ($requestOrigin && in_array($requestOrigin, $allowedOrigins)) {
+            // Specific origin with credentials - ALLOWED by CORS spec
+            $response->setHeader('Access-Control-Allow-Origin', $requestOrigin);
+            $response->setHeader('Access-Control-Allow-Credentials', 'true');
+        } elseif (in_array('*', $allowedOrigins) && !$requestOrigin) {
+            // Wildcard WITHOUT credentials - ALLOWED by CORS spec
+            $response->setHeader('Access-Control-Allow-Origin', '*');
+            // Do NOT set Allow-Credentials header
         }
-
-        // Allow credentials (cookies, authorization headers)
-        $response->setHeader('Access-Control-Allow-Credentials', 'true');
+        // If origin not in whitelist and no wildcard, no CORS headers set (blocked)
 
         // Allowed methods
         $response->setHeader(

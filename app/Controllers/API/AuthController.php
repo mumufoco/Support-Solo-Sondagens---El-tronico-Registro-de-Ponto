@@ -279,17 +279,26 @@ class AuthController extends ResourceController
      */
     protected function generateApiToken(int $employeeId): string
     {
-        // Simple token generation (in production, use JWT)
+        // Generate secure token with HMAC signature
         $payload = [
             'employee_id' => $employeeId,
             'timestamp' => time(),
             'random' => bin2hex(random_bytes(16)),
         ];
 
-        $token = base64_encode(json_encode($payload));
+        $payloadEncoded = base64_encode(json_encode($payload));
 
-        // In production, store token in database with expiration
-        // For this example, we're using stateless tokens
+        // Get encryption key from env (validate it exists)
+        $secret = env('encryption.key');
+        if (empty($secret)) {
+            throw new \RuntimeException('encryption.key not configured in environment');
+        }
+
+        // Generate HMAC signature to prevent tampering
+        $signature = hash_hmac('sha256', $payloadEncoded, $secret);
+
+        // Token format: payload.signature
+        $token = $payloadEncoded . '.' . $signature;
 
         return $token;
     }
@@ -315,9 +324,33 @@ class AuthController extends ResourceController
 
         $token = $matches[1];
 
-        // Decode token
+        // Decode and validate token
         try {
-            $payload = json_decode(base64_decode($token), true);
+            // Split token into payload and signature
+            $parts = explode('.', $token);
+            if (count($parts) !== 2) {
+                log_message('warning', 'Invalid token format - missing signature');
+                return null;
+            }
+
+            [$payloadEncoded, $providedSignature] = $parts;
+
+            // Get encryption key and validate
+            $secret = env('encryption.key');
+            if (empty($secret)) {
+                log_message('error', 'encryption.key not configured');
+                return null;
+            }
+
+            // Verify HMAC signature to prevent tampering
+            $expectedSignature = hash_hmac('sha256', $payloadEncoded, $secret);
+            if (!hash_equals($expectedSignature, $providedSignature)) {
+                log_message('warning', 'Invalid token signature - possible tampering attempt');
+                return null;
+            }
+
+            // Decode payload
+            $payload = json_decode(base64_decode($payloadEncoded), true);
 
             if (!$payload || !isset($payload['employee_id'])) {
                 return null;

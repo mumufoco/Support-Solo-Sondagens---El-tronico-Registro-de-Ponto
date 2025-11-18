@@ -580,8 +580,10 @@ class EmployeeModel extends Model
                     END
                 ) as last_punch
             ')
-            ->join('time_punches tp', 'e.id = tp.employee_id AND DATE(tp.punch_time) BETWEEN ' . $this->db->escape($startDate) . ' AND ' . $this->db->escape($endDate), 'left')
+            ->join('time_punches tp', 'e.id = tp.employee_id', 'left')
             ->where('e.active', 1)
+            ->where('DATE(tp.punch_time) >=', $startDate)
+            ->where('DATE(tp.punch_time) <=', $endDate)
             ->groupBy('e.id');
 
         if ($employeeIds !== null && !empty($employeeIds)) {

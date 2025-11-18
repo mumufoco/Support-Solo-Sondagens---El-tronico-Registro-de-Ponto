@@ -255,8 +255,9 @@ const employeeId = <?= $employee['id'] ?>;
 let replyToMessageId = null;
 
 // Initialize WebSocket
-const wsUrl = 'ws://<?= $_SERVER['HTTP_HOST'] ?? 'localhost' ?>:8080';
-const authToken = 'Bearer <?= session()->get('auth_token') ?? 'session' ?>';
+// SECURITY FIX: Escape HTTP_HOST to prevent XSS and DNS rebinding
+const wsUrl = 'ws://<?= esc($_SERVER['HTTP_HOST'] ?? 'localhost', 'js') ?>:8080';
+const authToken = 'Bearer <?= esc(session()->get('auth_token') ?? 'session', 'js') ?>';
 const chat = new ChatClient(wsUrl, authToken);
 
 // Set current room
