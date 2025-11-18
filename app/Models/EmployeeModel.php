@@ -32,6 +32,8 @@ class EmployeeModel extends Model
         'two_factor_secret',
         'two_factor_backup_codes',
         'two_factor_verified_at',
+        'has_face_biometric',
+        'has_fingerprint_biometric',
     ];
 
     // Dates

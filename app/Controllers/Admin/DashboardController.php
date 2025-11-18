@@ -24,8 +24,8 @@ class DashboardController extends BaseController
             'total_employees' => $employeeModel->where('active', true)->countAllResults(),
             'punches_today' => $timePunchModel->where('DATE(punch_time)', date('Y-m-d'))->countAllResults(),
             'pending_justifications' => $justificationModel->where('status', 'pending')->countAllResults(),
-            'pending_consents' => $consentModel->where('consent_given', false)->countAllResults(),
-            'enrolled_faces' => $biometricModel->where('biometric_type', 'face')->where('active', true)->countAllResults(),
+            'pending_consents' => $consentModel->where('granted', false)->countAllResults(),
+            'enrolled_biometrics' => $biometricModel->where('is_active', true)->countAllResults(),
 
             // Marcações últimos 7 dias (para gráfico Chart.js)
             'punches_last_7_days' => $this->getPunchesLast7Days(),
@@ -71,7 +71,9 @@ class DashboardController extends BaseController
         $employeeModel = new EmployeeModel();
         $consentModel = new UserConsentModel();
 
-        // Funcionários sem biometria facial
+        // TODO: Funcionários sem biometria - requer coluna has_face_biometric na tabela employees
+        // Temporariamente desabilitado devido a incompatibilidade de schema
+        /*
         $withoutBiometric = $employeeModel
             ->where('active', true)
             ->where('has_face_biometric', false)
@@ -85,9 +87,10 @@ class DashboardController extends BaseController
                 'link' => '/admin/employees?filter=no_biometric',
             ];
         }
+        */
 
         // Consentimentos LGPD pendentes
-        $pendingConsents = $consentModel->where('consent_given', false)->countAllResults();
+        $pendingConsents = $consentModel->where('granted', false)->countAllResults();
 
         if ($pendingConsents > 0) {
             $alerts[] = [

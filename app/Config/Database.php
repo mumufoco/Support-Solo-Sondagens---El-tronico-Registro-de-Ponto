@@ -30,6 +30,8 @@ class Database extends Config
         'DBPrefix'     => '',
         'pConnect'     => false,
         'DBDebug'      => (ENVIRONMENT !== 'production'),
+        'charset'      => '',  // Will be set in constructor based on DBDriver
+        'DBCollat'     => '',  // Will be set in constructor based on DBDriver
         'charset'      => 'utf8',
         'DBCollat'     => '',
         'swapPre'      => '',
@@ -59,8 +61,8 @@ class Database extends Config
         'DBPrefix'    => '',
         'pConnect'    => false,
         'DBDebug'     => true,
-        'charset'     => 'utf8mb4',
-        'DBCollat'    => 'utf8mb4_general_ci',
+        'charset'     => '',  // Will be set in constructor based on DBDriver
+        'DBCollat'    => '',  // Will be set in constructor based on DBDriver
         'swapPre'     => '',
         'encrypt'     => false,
         'compress'    => false,
@@ -88,6 +90,17 @@ class Database extends Config
         // we don't overwrite live data on accident.
         if (ENVIRONMENT === 'testing') {
             $this->defaultGroup = 'tests';
+        }
+
+        // Set charset and collation based on database driver
+        $driver = $this->default['DBDriver'];
+
+        if ($driver === 'Postgre') {
+            $this->default['charset'] = 'utf8';
+            $this->default['DBCollat'] = 'utf8_general_ci';
+        } elseif (in_array($driver, ['MySQLi', 'SQLSRV'])) {
+            $this->default['charset'] = 'utf8mb4';
+            $this->default['DBCollat'] = 'utf8mb4_general_ci';
         }
     }
 }

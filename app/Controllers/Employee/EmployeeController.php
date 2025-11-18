@@ -566,7 +566,7 @@ class EmployeeController extends BaseController
                 ->countAllResults(),
             'has_biometric' => $this->biometricModel
                 ->where('employee_id', $employeeId)
-                ->where('active', true)
+                ->where('is_active', true)
                 ->countAllResults() > 0,
         ];
     }

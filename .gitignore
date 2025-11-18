@@ -42,7 +42,9 @@ $RECYCLE.BIN/
 # These should never be under version control,
 # as it poses a security risk of exposing sensitive information.
 .env
+.env.*
 .env.backup*
+!.env.example
 .vagrant
 Vagrantfile
 
@@ -62,6 +64,9 @@ writable/uploads/*
 !writable/uploads/index.html
 
 writable/debugbar/*
+
+# Public writable directory (sessions created at runtime)
+public/writable/*
 
 php_errors.log
 
@@ -163,6 +168,9 @@ storage/logs/*
 # venv/ can be recreated with: python -m venv venv && pip install -r requirements.txt
 deepface-api/__pycache__/
 deepface-api/*.pyc
+deepface-api/.env
+deepface-api/.env.*
+!deepface-api/.env.example
 
 # DeepFace models cache (large ML models - downloaded on demand)
 .deepface/
