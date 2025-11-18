@@ -122,6 +122,7 @@ CREATE TABLE `biometric_templates` (
   `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT 'Template ativo',
   `created_at` datetime DEFAULT NULL,
   `updated_at` datetime DEFAULT NULL,
+  `deleted_at` datetime DEFAULT NULL COMMENT 'Soft delete timestamp',
   PRIMARY KEY (`id`),
   KEY `idx_employee_id` (`employee_id`),
   KEY `idx_finger` (`finger`),
