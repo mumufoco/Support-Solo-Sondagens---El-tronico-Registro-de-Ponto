@@ -123,7 +123,7 @@
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="text-muted small">CPF</label>
-                            <p class="mb-0"><?= formatCPF($employee->cpf ?? '') ?></p>
+                            <p class="mb-0"><?= format_cpf($employee->cpf ?? '') ?></p>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="text-muted small">Telefone</label>
@@ -318,36 +318,19 @@
                     <h6 class="mb-0"><i class="fas fa-fingerprint me-2"></i>Biometria</h6>
                 </div>
                 <div class="card-body">
+                    <?php // TODO: Implementar colunas has_face_biometric e has_fingerprint_biometric ?>
                     <div class="mb-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span><i class="fas fa-face-smile me-2"></i>Facial</span>
-                            <?php if ($employee->has_face_biometric): ?>
-                                <span class="badge bg-success">Cadastrada</span>
-                            <?php else: ?>
-                                <span class="badge bg-warning">Não cadastrada</span>
-                            <?php endif; ?>
+                            <span class="badge bg-secondary">Não implementado</span>
                         </div>
-                        <?php if (!empty($biometricTemplates['face'])): ?>
-                            <small class="text-muted">
-                                Cadastrada em: <?= date('d/m/Y', strtotime($biometricTemplates['face']->created_at)) ?>
-                            </small>
-                        <?php endif; ?>
                     </div>
 
                     <div class="mb-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span><i class="fas fa-fingerprint me-2"></i>Digital</span>
-                            <?php if ($employee->has_fingerprint_biometric): ?>
-                                <span class="badge bg-success">Cadastrada</span>
-                            <?php else: ?>
-                                <span class="badge bg-warning">Não cadastrada</span>
-                            <?php endif; ?>
+                            <span class="badge bg-secondary">Não implementado</span>
                         </div>
-                        <?php if (!empty($biometricTemplates['fingerprint'])): ?>
-                            <small class="text-muted">
-                                Cadastrada em: <?= date('d/m/Y', strtotime($biometricTemplates['fingerprint']->created_at)) ?>
-                            </small>
-                        <?php endif; ?>
                     </div>
 
                     <div class="d-grid gap-2">
