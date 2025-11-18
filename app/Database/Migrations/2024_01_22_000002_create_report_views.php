@@ -154,7 +154,7 @@ class CreateReportViews extends Migration
                 e.name AS employee_name,
                 e.department,
                 j.justification_date AS item_date,
-                j.justification_type,
+                j.type AS justification_type,
                 j.reason,
                 j.created_at AS submitted_at,
                 DATEDIFF(CURRENT_DATE, DATE(j.created_at)) AS days_pending
@@ -190,20 +190,20 @@ class CreateReportViews extends Migration
                 e.department,
                 MAX(
                     CASE
-                        WHEN bt.biometric_type = 'face' AND bt.active = 1
+                        WHEN bt.template_type = 'facial' AND bt.active = 1
                         THEN 1
                         ELSE 0
                     END
                 ) AS has_facial,
                 MAX(
                     CASE
-                        WHEN bt.biometric_type = 'fingerprint' AND bt.active = 1
+                        WHEN bt.template_type = 'fingerprint' AND bt.active = 1
                         THEN 1
                         ELSE 0
                     END
                 ) AS has_fingerprint,
                 COUNT(bt.id) AS total_templates,
-                MAX(bt.created_at) AS last_enrollment_date
+                MAX(bt.enrolled_at) AS last_enrollment_date
             FROM employees e
             LEFT JOIN biometric_templates bt ON e.id = bt.employee_id
             WHERE e.active = 1

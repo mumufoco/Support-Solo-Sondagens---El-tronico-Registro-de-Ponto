@@ -68,7 +68,7 @@ class DashboardController extends BaseController
         ]);
 
         // Log de auditoria
-        $this->logAudit('approve_justification', 'justification', $id, null, null, "Approved justification #{$id}");
+        $this->logAudit('approve_justification', "Approved justification #{$id}");
 
         return redirect()->back()
             ->with('message', 'Justificativa aprovada com sucesso.');
@@ -94,7 +94,7 @@ class DashboardController extends BaseController
         ]);
 
         // Log de auditoria
-        $this->logAudit('reject_justification', 'justification', $id, null, null, "Rejected justification #{$id}");
+        $this->logAudit('reject_justification', "Rejected justification #{$id}");
 
         return redirect()->back()
             ->with('message', 'Justificativa rejeitada.');
@@ -159,4 +159,24 @@ class DashboardController extends BaseController
         ];
     }
 
+    /**
+     * Log de auditoria
+     */
+    private function logAudit(string $action, string $description)
+    {
+        try {
+            $auditModel = new AuditLogModel();
+
+            $auditModel->insert([
+                'user_id' => session()->get('employee_id'),
+                'action' => $action,
+                'description' => $description,
+                'ip_address' => $this->request->getIPAddress(),
+                'user_agent' => $this->request->getUserAgent()->getAgentString(),
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        } catch (\Exception $e) {
+            log_message('error', 'Failed to log audit: ' . $e->getMessage());
+        }
+    }
 }

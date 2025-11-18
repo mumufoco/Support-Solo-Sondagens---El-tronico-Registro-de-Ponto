@@ -86,8 +86,7 @@
                         <div>
                             <h6 class="text-muted mb-1">Com Biometria</h6>
                             <h3 class="mb-0 text-info">
-                                <?php // TODO: Implementar colunas has_face_biometric e has_fingerprint_biometric ?>
-                                0
+                                <?= count(array_filter($employees, fn($e) => $e->has_face_biometric || $e->has_fingerprint_biometric)) ?>
                             </h3>
                         </div>
                         <div class="rounded-circle p-3" style="background-color: #e0f2f1;">
@@ -199,7 +198,7 @@
                                         </div>
                                     </td>
                                     <td><?= esc($employee->email) ?></td>
-                                    <td><?= format_cpf($employee->cpf ?? '') ?></td>
+                                    <td><?= formatCPF($employee->cpf ?? '') ?></td>
                                     <td>
                                         <span class="badge bg-secondary"><?= esc($employee->department) ?></span>
                                     </td>
@@ -218,8 +217,15 @@
                                         <code><?= esc($employee->unique_code) ?></code>
                                     </td>
                                     <td>
-                                        <?php // TODO: Implementar verificação de biometria quando colunas existirem ?>
-                                        <span class="text-muted">-</span>
+                                        <?php if ($employee->has_face_biometric): ?>
+                                            <i class="fas fa-face-smile text-success me-1" title="Facial"></i>
+                                        <?php endif; ?>
+                                        <?php if ($employee->has_fingerprint_biometric): ?>
+                                            <i class="fas fa-fingerprint text-success" title="Digital"></i>
+                                        <?php endif; ?>
+                                        <?php if (!$employee->has_face_biometric && !$employee->has_fingerprint_biometric): ?>
+                                            <span class="text-muted">-</span>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
                                         <?php if ($employee->active): ?>

@@ -106,7 +106,7 @@ class CreateTimePunchesTable extends Migration
 
         $this->forge->addKey('id', true);
         $this->forge->addKey(['employee_id', 'punch_time']);
-        // nsr already has unique index from field definition
+        $this->forge->addKey('nsr');
         $this->forge->addKey('punch_time');
         $this->forge->addKey(['employee_id', 'punch_type']);
 

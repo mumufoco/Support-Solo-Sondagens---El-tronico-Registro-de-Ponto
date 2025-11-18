@@ -11,95 +11,132 @@ use CodeIgniter\Database\Migration;
  */
 class AddPerformanceIndexes extends Migration
 {
-    /**
-     * Helper method to add index only if it doesn't exist
-     */
-    private function addIndexIfNotExists($table, $indexName, $columns)
-    {
-        try {
-            $this->db->query("
-                ALTER TABLE {$table}
-                ADD INDEX {$indexName} ({$columns})
-            ");
-        } catch (\Exception $e) {
-            // Ignore duplicate key errors (index already exists)
-            if (strpos($e->getMessage(), 'Duplicate key name') === false) {
-                throw $e;
-            }
-        }
-    }
-
     public function up()
     {
         // ==================== time_punches indexes ====================
 
         // Composite index for employee + date queries (most common)
-        $this->addIndexIfNotExists('time_punches', 'idx_employee_date', 'employee_id, punch_time DESC');
+        $this->db->query('
+            ALTER TABLE time_punches
+            ADD INDEX idx_employee_date (employee_id, punch_time DESC)
+        ');
 
         // Index for punch type filtering with date
-        $this->addIndexIfNotExists('time_punches', 'idx_type_date', 'punch_type, punch_time DESC');
+        $this->db->query('
+            ALTER TABLE time_punches
+            ADD INDEX idx_type_date (punch_type, punch_time DESC)
+        ');
 
         // Index for geofence queries
-        $this->addIndexIfNotExists('time_punches', 'idx_geofence', 'within_geofence, punch_time DESC');
+        $this->db->query('
+            ALTER TABLE time_punches
+            ADD INDEX idx_geofence (within_geofence, punch_time DESC)
+        ');
 
         // Index for method + employee (useful for reports by method)
-        $this->addIndexIfNotExists('time_punches', 'idx_employee_method', 'employee_id, method, punch_time DESC');
+        $this->db->query('
+            ALTER TABLE time_punches
+            ADD INDEX idx_employee_method (employee_id, method, punch_time DESC)
+        ');
 
         // ==================== audit_logs indexes ====================
 
         // Composite index for user + action + date
-        $this->addIndexIfNotExists('audit_logs', 'idx_user_action_date', 'user_id, action, created_at DESC');
+        $this->db->query('
+            ALTER TABLE audit_logs
+            ADD INDEX idx_user_action_date (user_id, action, created_at DESC)
+        ');
 
         // Index for action filtering
-        $this->addIndexIfNotExists('audit_logs', 'idx_action_date', 'action, created_at DESC');
+        $this->db->query('
+            ALTER TABLE audit_logs
+            ADD INDEX idx_action_date (action, created_at DESC)
+        ');
 
-        // Index for severity filtering (for alerts) - SKIPPED: severity column doesn't exist
+        // Index for severity filtering (for alerts)
+        $this->db->query('
+            ALTER TABLE audit_logs
+            ADD INDEX idx_severity_date (severity, created_at DESC)
+        ');
 
-        // Index for entity filtering (actual column names are entity_type, entity_id)
-        $this->addIndexIfNotExists('audit_logs', 'idx_entity_type_id', 'entity_type, entity_id, created_at DESC');
+        // Index for table + record filtering
+        $this->db->query('
+            ALTER TABLE audit_logs
+            ADD INDEX idx_table_record (table_name, record_id, created_at DESC)
+        ');
 
         // ==================== chat_messages indexes ====================
 
         // Check if chat_messages table exists
         if ($this->db->tableExists('chat_messages')) {
-            // Index for room-based messages (actual structure uses rooms, not direct recipient_id)
-            $this->addIndexIfNotExists('chat_messages', 'idx_room_date', 'room_id, created_at DESC');
+            // Composite index for sender + recipient + date
+            $this->db->query('
+                ALTER TABLE chat_messages
+                ADD INDEX idx_sender_recipient_date (sender_id, recipient_id, sent_at DESC)
+            ');
 
-            // Index for sender + room
-            $this->addIndexIfNotExists('chat_messages', 'idx_sender_room_date', 'sender_id, room_id, created_at DESC');
+            // Index for recipient + read status (for unread counts)
+            $this->db->query('
+                ALTER TABLE chat_messages
+                ADD INDEX idx_recipient_read (recipient_id, is_read, sent_at DESC)
+            ');
+
+            // Index for room-based messages
+            $this->db->query('
+                ALTER TABLE chat_messages
+                ADD INDEX idx_room_date (room_id, sent_at DESC)
+            ');
         }
 
         // ==================== employees indexes ====================
 
         // Index for active employees by department
-        $this->addIndexIfNotExists('employees', 'idx_department_active', 'department, active, name');
+        $this->db->query('
+            ALTER TABLE employees
+            ADD INDEX idx_department_active (department, active, name)
+        ');
 
-        // Index for manager hierarchy queries - SKIPPED: manager_id column doesn't exist
-        // $this->db->query('
-        //     ALTER TABLE employees
-        //     ADD INDEX idx_manager_active (manager_id, active)
-        // ');
+        // Index for manager hierarchy queries
+        $this->db->query('
+            ALTER TABLE employees
+            ADD INDEX idx_manager_active (manager_id, active)
+        ');
 
         // ==================== justifications indexes ====================
 
         // Index for employee + status + date
-        $this->addIndexIfNotExists('justifications', 'idx_employee_status_date', 'employee_id, status, justification_date DESC');
+        $this->db->query('
+            ALTER TABLE justifications
+            ADD INDEX idx_employee_status_date (employee_id, status, justification_date DESC)
+        ');
 
         // Index for pending approvals
-        $this->addIndexIfNotExists('justifications', 'idx_status_date', 'status, created_at DESC');
+        $this->db->query('
+            ALTER TABLE justifications
+            ADD INDEX idx_status_date (status, created_at DESC)
+        ');
 
         // ==================== biometric_templates indexes ====================
 
-        // Index for employee + type (for quick lookup) - column is biometric_type, not template_type
-        $this->addIndexIfNotExists('biometric_templates', 'idx_employee_type', 'employee_id, biometric_type, active');
+        // Index for employee + type (for quick lookup)
+        $this->db->query('
+            ALTER TABLE biometric_templates
+            ADD INDEX idx_employee_type (employee_id, template_type, active)
+        ');
 
         // ==================== warnings indexes ====================
 
-        // Index for employee + date (column is occurrence_date, not warning_date)
-        $this->addIndexIfNotExists('warnings', 'idx_employee_date', 'employee_id, occurrence_date DESC');
+        // Index for employee + date
+        $this->db->query('
+            ALTER TABLE warnings
+            ADD INDEX idx_employee_date (employee_id, warning_date DESC)
+        ');
 
-        // Index for type + status (no severity column exists)
-        $this->addIndexIfNotExists('warnings', 'idx_type_status', 'warning_type, status, occurrence_date DESC');
+        // Index for type + severity
+        $this->db->query('
+            ALTER TABLE warnings
+            ADD INDEX idx_type_severity (warning_type, severity, warning_date DESC)
+        ');
 
         log_message('info', 'Performance indexes created successfully');
     }
@@ -109,8 +146,8 @@ class AddPerformanceIndexes extends Migration
         // Drop indexes in reverse order
 
         // warnings
-        try { $this->db->query('DROP INDEX idx_type_status ON warnings'); } catch (\Exception $e) {}
-        try { $this->db->query('DROP INDEX idx_employee_date ON warnings'); } catch (\Exception $e) {}
+        $this->db->query('DROP INDEX idx_type_severity ON warnings');
+        $this->db->query('DROP INDEX idx_employee_date ON warnings');
 
         // biometric_templates
         $this->db->query('DROP INDEX idx_employee_type ON biometric_templates');
@@ -120,21 +157,21 @@ class AddPerformanceIndexes extends Migration
         $this->db->query('DROP INDEX idx_employee_status_date ON justifications');
 
         // employees
-        // $this->db->query('DROP INDEX idx_manager_active ON employees');  // Not created
+        $this->db->query('DROP INDEX idx_manager_active ON employees');
         $this->db->query('DROP INDEX idx_department_active ON employees');
 
         // chat_messages (if exists)
         if ($this->db->tableExists('chat_messages')) {
-            try { $this->db->query('DROP INDEX idx_room_date ON chat_messages'); } catch (\Exception $e) {}
-            try { $this->db->query('DROP INDEX idx_sender_room_date ON chat_messages'); } catch (\Exception $e) {}
+            $this->db->query('DROP INDEX idx_room_date ON chat_messages');
+            $this->db->query('DROP INDEX idx_recipient_read ON chat_messages');
+            $this->db->query('DROP INDEX idx_sender_recipient_date ON chat_messages');
         }
 
         // audit_logs
-        if ($this->db->tableExists('audit_logs')) {
-            try { $this->db->query('DROP INDEX idx_entity_type_id ON audit_logs'); } catch (\Exception $e) {}
-            try { $this->db->query('DROP INDEX idx_action_date ON audit_logs'); } catch (\Exception $e) {}
-            try { $this->db->query('DROP INDEX idx_user_action_date ON audit_logs'); } catch (\Exception $e) {}
-        }
+        $this->db->query('DROP INDEX idx_table_record ON audit_logs');
+        $this->db->query('DROP INDEX idx_severity_date ON audit_logs');
+        $this->db->query('DROP INDEX idx_action_date ON audit_logs');
+        $this->db->query('DROP INDEX idx_user_action_date ON audit_logs');
 
         // time_punches
         $this->db->query('DROP INDEX idx_employee_method ON time_punches');

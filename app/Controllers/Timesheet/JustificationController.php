@@ -74,23 +74,11 @@ class JustificationController extends BaseController
         }
 
         // Count by status
-        $builder = $this->justificationModel->builder();
-
-        // Apply same filters as main query for accurate counts
-        if ($employee['role'] === 'funcionario') {
-            $builder->where('employee_id', $employee['id']);
-        } elseif ($employee['role'] === 'gestor') {
-            $employeeIds = $this->employeeModel
-                ->where('department', $employee['department'])
-                ->findColumn('id');
-            $builder->whereIn('employee_id', $employeeIds);
-        }
-
         $counts = [
-            'all' => (clone $builder)->countAllResults(false),
-            'pending' => (clone $builder)->where('status', 'pendente')->countAllResults(false),
-            'approved' => (clone $builder)->where('status', 'aprovado')->countAllResults(false),
-            'rejected' => (clone $builder)->where('status', 'rejeitado')->countAllResults(false),
+            'all' => $this->justificationModel->countAllResults(false),
+            'pending' => $this->justificationModel->where('status', 'pending')->countAllResults(false),
+            'approved' => $this->justificationModel->where('status', 'approved')->countAllResults(false),
+            'rejected' => $this->justificationModel->where('status', 'rejected')->countAllResults(false),
         ];
 
         return view('justifications/index', [
@@ -392,7 +380,7 @@ class JustificationController extends BaseController
 
         // Update justification
         $this->justificationModel->update($id, [
-            'status' => 'aprovado',
+            'status' => 'approved',
             'reviewed_by' => $employee['id'],
             'reviewed_at' => date('Y-m-d H:i:s'),
             'review_notes' => $this->request->getPost('notes'),
@@ -449,7 +437,7 @@ class JustificationController extends BaseController
 
         // Update justification
         $this->justificationModel->update($id, [
-            'status' => 'rejeitado',
+            'status' => 'rejected',
             'reviewed_by' => $employee['id'],
             'reviewed_at' => date('Y-m-d H:i:s'),
             'review_notes' => $notes,
@@ -489,7 +477,7 @@ class JustificationController extends BaseController
 
         // Only employee (if pending) or admin can delete
         if ($employee['role'] !== 'admin') {
-            if ($justification->employee_id !== $employee['id'] || $justification->status !== 'pendente') {
+            if ($justification->employee_id !== $employee['id'] || $justification->status !== 'pending') {
                 return redirect()->to('/justifications')
                     ->with('error', 'Você só pode excluir justificativas pendentes.');
             }

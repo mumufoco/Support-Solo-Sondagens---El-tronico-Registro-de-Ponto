@@ -87,24 +87,14 @@ class WarningController extends BaseController
         }
 
         // Count by type and status
-        $builder = $this->warningModel->builder();
-
-        // Apply same department filter as main query
-        if ($employee['role'] === 'gestor') {
-            $employeeIds = $this->employeeModel
-                ->where('department', $employee['department'])
-                ->findColumn('id');
-            $builder->whereIn('employee_id', $employeeIds);
-        }
-
         $counts = [
-            'all' => (clone $builder)->countAllResults(false),
-            'verbal' => (clone $builder)->where('warning_type', 'verbal')->countAllResults(false),
-            'escrita' => (clone $builder)->where('warning_type', 'escrita')->countAllResults(false),
-            'suspensao' => (clone $builder)->where('warning_type', 'suspensao')->countAllResults(false),
-            'pendente' => (clone $builder)->where('status', 'pendente-assinatura')->countAllResults(false),
-            'assinado' => (clone $builder)->where('status', 'assinado')->countAllResults(false),
-            'recusado' => (clone $builder)->where('status', 'recusado')->countAllResults(false),
+            'all' => $this->warningModel->countAllResults(false),
+            'verbal' => $this->warningModel->where('warning_type', 'verbal')->countAllResults(false),
+            'escrita' => $this->warningModel->where('warning_type', 'escrita')->countAllResults(false),
+            'suspensao' => $this->warningModel->where('warning_type', 'suspensao')->countAllResults(false),
+            'pendente' => $this->warningModel->where('status', 'pendente-assinatura')->countAllResults(false),
+            'assinado' => $this->warningModel->where('status', 'assinado')->countAllResults(false),
+            'recusado' => $this->warningModel->where('status', 'recusado')->countAllResults(false),
         ];
 
         return view('warnings/index', [
@@ -863,11 +853,11 @@ class WarningController extends BaseController
      */
     protected function getAuthenticatedEmployee(): ?array
     {
-        if (!session()->has('user_id')) {
+        if (!session()->has('employee_id')) {
             return null;
         }
 
-        $employeeId = session()->get('user_id');
+        $employeeId = session()->get('employee_id');
         $employee = $this->employeeModel->find($employeeId);
 
         if (!$employee) {
