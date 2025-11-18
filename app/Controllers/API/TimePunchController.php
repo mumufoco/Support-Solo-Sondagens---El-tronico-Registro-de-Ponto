@@ -334,8 +334,28 @@ class TimePunchController extends ResourceController
             return $this->fail('Registro não encontrado.', 404);
         }
 
-        // Check ownership (or manager/admin)
-        if ($punch->employee_id !== $employee->id && !in_array($employee->role, ['admin', 'gestor'])) {
+        // SECURITY FIX: Check access permissions with department validation for gestores
+        // This prevents IDOR (Insecure Direct Object Reference) attacks
+        $hasAccess = false;
+
+        if ($punch->employee_id === $employee->id) {
+            // Employee can access their own punches
+            $hasAccess = true;
+        } elseif ($employee->role === 'admin') {
+            // Admins can access all punches
+            $hasAccess = true;
+        } elseif ($employee->role === 'gestor') {
+            // Gestores can only access punches from employees in their department
+            $punchEmployee = $this->employeeModel->find($punch->employee_id);
+
+            if ($punchEmployee && $punchEmployee->department === $employee->department) {
+                $hasAccess = true;
+            } else {
+                log_message('security', "IDOR attempt: Gestor {$employee->id} tried to access punch from different department: employee {$punch->employee_id}");
+            }
+        }
+
+        if (!$hasAccess) {
             return $this->fail('Acesso negado.', 403);
         }
 

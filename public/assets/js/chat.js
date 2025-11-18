@@ -547,6 +547,17 @@ class ChatClient {
 
         // Send request
         xhr.open('POST', '/chat/upload');
+
+        // SECURITY FIX: Add CSRF token to prevent Cross-Site Request Forgery
+        // Get CSRF token from cookie (token name: csrf_cookie_name)
+        const csrfToken = document.cookie.split('; ')
+            .find(row => row.startsWith('csrf_cookie_name='))
+            ?.split('=')[1];
+
+        if (csrfToken) {
+            xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
+        }
+
         xhr.send(formData);
 
         return xhr; // Return xhr for potential cancellation

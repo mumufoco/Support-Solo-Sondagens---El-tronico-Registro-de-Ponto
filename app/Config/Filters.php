@@ -104,6 +104,33 @@ class Filters extends BaseConfig
      * @var array<string, array<string, list<string>>>
      */
     public array $filters = [
+        // SECURITY FIX: CSRF Protection for state-changing operations
+        // Prevents Cross-Site Request Forgery attacks on POST endpoints
+        'csrf' => [
+            'before' => [
+                'chat/group/store',
+                'chat/room/*/add-member',
+                'chat/room/*/remove-member',
+                'chat/upload',
+                'chat/push/subscribe',
+                'chat/push/unsubscribe',
+                'chat/push/test',
+                'employees/store',
+                'employees/update/*',
+                'employees/delete/*',
+                'employees/activate/*',
+                'employees/deactivate/*',
+                'timesheet/punch',
+                'justifications/store',
+                'justifications/approve/*',
+                'justifications/reject/*',
+                'biometric/upload',
+                'biometric/delete/*',
+                'settings/update',
+                'warnings/acknowledge/*',
+            ],
+        ],
+
         // Authentication required
         'auth' => [
             'before' => [
