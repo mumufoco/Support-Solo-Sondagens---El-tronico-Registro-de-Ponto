@@ -43,6 +43,8 @@ $RECYCLE.BIN/
 # as it poses a security risk of exposing sensitive information.
 .env
 .env.backup*
+.env.credentials
+get-docker.sh
 .vagrant
 Vagrantfile
 
