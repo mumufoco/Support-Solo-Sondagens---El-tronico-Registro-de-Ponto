@@ -37,7 +37,7 @@ class AuthController extends ResourceController
         // Validate input
         $rules = [
             'email' => 'required|valid_email',
-            'password' => 'required|min_length[6]',
+            'password' => 'required|min_length[12]|strong_password',  // SECURITY FIX: Consistent with web login
         ];
 
         if (!$this->validate($rules)) {

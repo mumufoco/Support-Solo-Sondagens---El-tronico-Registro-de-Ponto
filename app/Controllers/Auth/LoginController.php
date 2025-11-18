@@ -141,7 +141,9 @@ class LoginController extends BaseController
 
         $this->session->set($sessionData);
 
-        // Regenerate session ID for security
+        // SECURITY: Regenerate session ID to prevent session fixation
+        // This should ALSO be done whenever user role/privileges change
+        // See: regenerateSessionOnRoleChange() method
         $this->session->regenerate();
 
         // Set remember me cookie if requested

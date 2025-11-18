@@ -149,7 +149,7 @@ class EmployeeController extends BaseController
             'name'       => 'required|min_length[3]|max_length[255]',
             'email'      => 'required|valid_email|is_unique[employees.email]',
             'cpf'        => 'required|exact_length[14]|is_unique[employees.cpf]',
-            'password'   => 'required|min_length[8]',
+            'password'   => 'required|min_length[12]|strong_password',  // SECURITY FIX: Strong password required
             'role'       => 'required|in_list[admin,gestor,funcionario]',
             'department' => 'required|min_length[2]',
             'position'   => 'required|min_length[2]',
@@ -323,6 +323,14 @@ class EmployeeController extends BaseController
             return redirect()->back()->withInput();
         }
 
+        // SECURITY FIX: Regenerate session if role changed for currently logged-in user
+        // This prevents session fixation when privileges are escalated/de-escalated
+        if ($this->session->get('user_id') == $id && $oldValues['role'] !== $role) {
+            $this->session->set('user_role', $role);
+            $this->session->regenerate();
+            log_message('info', "Session regenerated for user {$id} due to role change: {$oldValues['role']} -> {$role}");
+        }
+
         // Log update
         $this->logAudit(
             'EMPLOYEE_UPDATED',
@@ -464,7 +472,7 @@ class EmployeeController extends BaseController
         // Validate input (limited fields for self-update)
         $rules = [
             'phone' => 'permit_empty|max_length[20]',
-            'password' => 'permit_empty|min_length[8]',
+            'password' => 'permit_empty|min_length[12]|strong_password',  // SECURITY FIX: If changing password, must be strong
             'password_confirm' => 'permit_empty|matches[password]',
         ];
 

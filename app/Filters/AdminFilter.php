@@ -42,11 +42,29 @@ class AdminFilter implements FilterInterface
         }
 
         // Check if user has admin role
-        $userRole = $session->get('user_role');
+        // SECURITY FIX: Verify role from database, not just session
+        // This prevents privilege escalation if session is compromised
+        $userId = $session->get('user_id');
 
-        if ($userRole !== 'admin') {
+        $employeeModel = new \App\Models\EmployeeModel();
+        $user = $employeeModel->find($userId);
+
+        if (!$user || !$user->active) {
+            $session->destroy();
+            $session->setFlashdata('error', 'Sua conta não está mais ativa.');
+            return redirect()->to('/auth/login');
+        }
+
+        // Verify role from database (source of truth)
+        if ($user->role !== 'admin') {
+            // Update session if role changed
+            if ($session->get('user_role') !== $user->role) {
+                $session->set('user_role', $user->role);
+                log_message('warning', "User {$userId} role mismatch detected - session updated");
+            }
+
             // Log unauthorized access attempt
-            $this->logUnauthorizedAccess($session->get('user_id'), current_url());
+            $this->logUnauthorizedAccess($userId, current_url());
 
             $session->setFlashdata('error', 'Você não tem permissão para acessar esta área. Acesso restrito a administradores.');
 
@@ -60,7 +78,7 @@ class AdminFilter implements FilterInterface
             }
 
             // Redirect to user's dashboard based on role
-            $dashboardUrl = $this->getDashboardUrl($userRole);
+            $dashboardUrl = $this->getDashboardUrl($user->role);
             return redirect()->to($dashboardUrl);
         }
 

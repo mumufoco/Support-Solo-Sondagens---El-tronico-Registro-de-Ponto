@@ -72,7 +72,7 @@ class RegisterController extends BaseController
             'name'         => 'required|min_length[3]|max_length[255]',
             'email'        => 'required|valid_email|is_unique[employees.email]',
             'cpf'          => 'required|exact_length[14]|is_unique[employees.cpf]',
-            'password'     => 'required|min_length[8]|strong_password',
+            'password'     => 'required|min_length[12]|strong_password',  // SECURITY FIX: Minimum 12 characters
             'password_confirm' => 'required|matches[password]',
             'lgpd_consent' => 'required|in_list[1]',
             'terms_accepted' => 'required|in_list[1]',
@@ -188,7 +188,7 @@ class RegisterController extends BaseController
             'name'       => 'required|min_length[3]|max_length[255]',
             'email'      => 'required|valid_email|is_unique[employees.email]',
             'cpf'        => 'required|exact_length[14]|is_unique[employees.cpf]',
-            'password'   => 'required|min_length[8]',
+            'password'   => 'required|min_length[12]|strong_password',  // SECURITY FIX: Manager must create strong passwords too
             'role'       => 'required|in_list[admin,gestor,funcionario]',
             'department' => 'required|min_length[2]',
             'position'   => 'required|min_length[2]',

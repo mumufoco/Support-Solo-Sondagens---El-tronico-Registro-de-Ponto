@@ -42,11 +42,29 @@ class ManagerFilter implements FilterInterface
         }
 
         // Check if user has manager or admin role
-        $userRole = $session->get('user_role');
+        // SECURITY FIX: Verify role from database, not just session
+        // This prevents privilege escalation if session is compromised
+        $userId = $session->get('user_id');
 
-        if (!in_array($userRole, ['admin', 'gestor'])) {
+        $employeeModel = new \App\Models\EmployeeModel();
+        $user = $employeeModel->find($userId);
+
+        if (!$user || !$user->active) {
+            $session->destroy();
+            $session->setFlashdata('error', 'Sua conta não está mais ativa.');
+            return redirect()->to('/auth/login');
+        }
+
+        // Verify role from database (source of truth)
+        if (!in_array($user->role, ['admin', 'gestor'])) {
+            // Update session if role changed
+            if ($session->get('user_role') !== $user->role) {
+                $session->set('user_role', $user->role);
+                log_message('warning', "User {$userId} role mismatch detected - session updated");
+            }
+
             // Log unauthorized access attempt
-            $this->logUnauthorizedAccess($session->get('user_id'), current_url());
+            $this->logUnauthorizedAccess($userId, current_url());
 
             $session->setFlashdata('error', 'Você não tem permissão para acessar esta área. Acesso restrito a gestores e administradores.');
 
