@@ -395,11 +395,11 @@ class GeofenceController extends BaseController
      */
     protected function getAuthenticatedEmployee(): ?array
     {
-        if (!session()->has('employee_id')) {
+        if (!session()->has('user_id')) {
             return null;
         }
 
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
         $employee = $this->employeeModel->find($employeeId);
 
         if (!$employee) {
