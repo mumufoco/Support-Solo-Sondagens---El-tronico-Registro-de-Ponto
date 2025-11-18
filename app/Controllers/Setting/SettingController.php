@@ -28,7 +28,7 @@ class SettingController extends BaseController
      * Settings index page with tabs
      * GET /settings
      */
-    public function index(): string
+    public function index(): string|ResponseInterface
     {
         // Check admin permission
         if (!$this->hasPermission('manage_settings')) {
