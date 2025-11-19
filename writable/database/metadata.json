@@ -1,15 +1,7 @@
 {
-    "version": "1.0",
-    "created_at": "2025-11-18 14:38:47",
-    "last_updated": "2025-11-18 14:38:47",
-    "driver": "JSON",
-    "tables": [
-        "employees",
-        "timesheets",
-        "leave_requests",
-        "remember_tokens",
-        "audit_logs",
-        "biometric_templates",
-        "reports"
-    ]
+    "installed_at": "2025-11-19 21:10:50",
+    "version": "3.0.0",
+    "database_type": "JSON",
+    "admin_email": "admin@sistema.com",
+    "installation_mode": "forced_production"
 }

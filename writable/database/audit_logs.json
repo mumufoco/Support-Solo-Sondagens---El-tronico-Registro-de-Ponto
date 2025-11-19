@@ -1,42 +1,14 @@
 [
     {
         "id": 1,
-        "user_id": 1,
-        "action": "LOGIN",
-        "table_name": null,
-        "description": "Login bem-sucedido do administrador",
-        "severity": "info",
+        "employee_id": 1,
+        "action": "INSTALL",
+        "entity": "system",
+        "entity_id": null,
+        "old_values": null,
+        "new_values": "{\"version\":\"1.0.0\"}",
         "ip_address": "127.0.0.1",
-        "created_at": "2025-11-18 14:38:47"
-    },
-    {
-        "id": 2,
-        "user_id": 1,
-        "action": "CREATE",
-        "table_name": "employees",
-        "description": "Novo funcion\u00e1rio cadastrado",
-        "severity": "info",
-        "ip_address": "127.0.0.1",
-        "created_at": "2025-11-18 13:38:47"
-    },
-    {
-        "id": 3,
-        "user_id": 2,
-        "action": "APPROVE",
-        "table_name": "leave_requests",
-        "description": "Solicita\u00e7\u00e3o de f\u00e9rias aprovada",
-        "severity": "info",
-        "ip_address": "127.0.0.1",
-        "created_at": "2025-11-18 12:38:47"
-    },
-    {
-        "id": 4,
-        "user_id": 2,
-        "action": "APPROVE",
-        "table_name": "timesheets",
-        "description": "Timesheet aprovado pelo gestor",
-        "severity": "info",
-        "ip_address": "127.0.0.1",
-        "created_at": "2025-11-18 14:38:52"
+        "user_agent": "Instalação Forçada",
+        "created_at": "2025-11-19 21:10:50"
     }
 ]
