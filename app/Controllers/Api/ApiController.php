@@ -89,25 +89,34 @@ class ApiController extends BaseController
             ],
         ];
 
-        // Check database connection
-        try {
-            $db = \Config\Database::connect();
-            $health['database']['connected'] = $db->connID !== false;
-            $health['database']['database'] = $db->database;
-
-            // Check if database is actually working
+        // Check if using JSON database
+        if (file_exists(WRITEPATH . 'INSTALLED')) {
+            $health['database']['type'] = 'JSON';
+            $health['database']['status'] = 'operational';
+            $health['database']['connected'] = true;
+            $health['database']['info'] = 'Using JSON file storage';
+        } else {
+            // Check MySQL database connection
             try {
-                $db->query('SELECT 1');
-                $health['database']['status'] = 'operational';
+                $db = \Config\Database::connect();
+                $health['database']['connected'] = $db->connID !== false;
+                $health['database']['database'] = $db->database;
+                $health['database']['type'] = 'MySQL';
+
+                // Check if database is actually working
+                try {
+                    $db->query('SELECT 1');
+                    $health['database']['status'] = 'operational';
+                } catch (\Exception $e) {
+                    $health['database']['status'] = 'error';
+                    $health['database']['error'] = $e->getMessage();
+                    $health['status'] = 'degraded';
+                }
             } catch (\Exception $e) {
                 $health['database']['status'] = 'error';
-                $health['database']['error'] = $e->getMessage();
+                $health['database']['error'] = 'Database not configured';
                 $health['status'] = 'degraded';
             }
-        } catch (\Exception $e) {
-            $health['database']['status'] = 'error';
-            $health['database']['error'] = 'Database not configured';
-            $health['status'] = 'degraded';
         }
 
         $statusCode = $health['status'] === 'healthy' ? 200 : 503;

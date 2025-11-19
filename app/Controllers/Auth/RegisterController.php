@@ -17,6 +17,12 @@ class RegisterController extends BaseController
 
     public function __construct()
     {
+        // Check if using JSON database (no MySQL)
+        if (file_exists(WRITEPATH . 'INSTALLED')) {
+            // JSON mode - models not needed
+            return;
+        }
+
         try {
             $this->employeeModel = new EmployeeModel();
             $this->auditModel = new AuditLogModel();

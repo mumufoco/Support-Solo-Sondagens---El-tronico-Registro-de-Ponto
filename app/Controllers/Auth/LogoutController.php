@@ -11,6 +11,11 @@ class LogoutController extends BaseController
 
     public function __construct()
     {
+        // Check if using JSON database (no MySQL)
+        if (file_exists(WRITEPATH . 'INSTALLED')) {
+            return; // JSON mode - model not needed
+        }
+
         try {
             $this->auditModel = new AuditLogModel();
         } catch (\Exception $e) {
