@@ -11,7 +11,11 @@ class LogoutController extends BaseController
 
     public function __construct()
     {
-        $this->auditModel = new AuditLogModel();
+        try {
+            $this->auditModel = new AuditLogModel();
+        } catch (\Exception $e) {
+            // Database not configured
+        }
     }
 
     /**
@@ -28,17 +32,23 @@ class LogoutController extends BaseController
         $userId = $this->session->get('user_id');
         $userName = $this->session->get('user_name');
 
-        // Log logout
-        $this->auditModel->log(
-            $userId,
-            'LOGOUT',
-            'employees',
-            $userId,
-            null,
-            null,
-            "Logout: {$userName}",
-            'info'
-        );
+        // Log logout (only if database is configured)
+        if ($this->auditModel) {
+            try {
+                $this->auditModel->log(
+                    $userId,
+                    'LOGOUT',
+                    'employees',
+                    $userId,
+                    null,
+                    null,
+                    "Logout: {$userName}",
+                    'info'
+                );
+            } catch (\Exception $e) {
+                // Ignore audit log errors
+            }
+        }
 
         // Clear remember me cookie
         $this->clearRememberMeCookie();

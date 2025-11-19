@@ -17,10 +17,14 @@ class RegisterController extends BaseController
 
     public function __construct()
     {
-        $this->employeeModel = new EmployeeModel();
-        $this->auditModel = new AuditLogModel();
-        $this->consentModel = new UserConsentModel();
-        $this->settingModel = new SettingModel();
+        try {
+            $this->employeeModel = new EmployeeModel();
+            $this->auditModel = new AuditLogModel();
+            $this->consentModel = new UserConsentModel();
+            $this->settingModel = new SettingModel();
+        } catch (\Exception $e) {
+            // Database not configured - will be handled in methods
+        }
     }
 
     /**
@@ -28,12 +32,18 @@ class RegisterController extends BaseController
      */
     public function index()
     {
+        // Check if database is configured
+        if (!$this->settingModel) {
+            return redirect()->to('/install.php')
+                ->with('error', 'Sistema não configurado. Execute o instalador primeiro.');
+        }
+
         // Check if self-registration is enabled
         $selfRegistrationEnabled = $this->settingModel->get('self_registration_enabled', false);
 
         if (!$selfRegistrationEnabled) {
-            $this->setError('O auto-cadastro está desativado. Entre em contato com o administrador.');
-            return redirect()->to('/auth/login');
+            return redirect()->to('/auth/login')
+                ->with('error', 'O auto-cadastro está desativado. Entre em contato com o administrador.');
         }
 
         // Redirect if already logged in

@@ -73,8 +73,6 @@ class ApiController extends BaseController
      */
     public function health(): ResponseInterface
     {
-        $db = \Config\Database::connect();
-
         $health = [
             'status' => 'healthy',
             'timestamp' => date('Y-m-d H:i:s'),
@@ -83,21 +81,32 @@ class ApiController extends BaseController
                 'environment' => ENVIRONMENT,
             ],
             'database' => [
-                'connected' => $db->connID !== false,
-                'database' => $db->database,
+                'connected' => false,
+                'status' => 'not_configured',
             ],
             'services' => [
                 'deepface' => $this->checkDeepFaceService(),
             ],
         ];
 
-        // Check if database is actually working
+        // Check database connection
         try {
-            $db->query('SELECT 1');
-            $health['database']['status'] = 'operational';
+            $db = \Config\Database::connect();
+            $health['database']['connected'] = $db->connID !== false;
+            $health['database']['database'] = $db->database;
+
+            // Check if database is actually working
+            try {
+                $db->query('SELECT 1');
+                $health['database']['status'] = 'operational';
+            } catch (\Exception $e) {
+                $health['database']['status'] = 'error';
+                $health['database']['error'] = $e->getMessage();
+                $health['status'] = 'degraded';
+            }
         } catch (\Exception $e) {
             $health['database']['status'] = 'error';
-            $health['database']['error'] = $e->getMessage();
+            $health['database']['error'] = 'Database not configured';
             $health['status'] = 'degraded';
         }
 
