@@ -8,6 +8,18 @@
 $host = '127.0.0.1';
 $port = 3306;
 
+// Verificar se já existe um processo rodando na porta
+$checkCmd = "lsof -ti:$port 2>/dev/null";
+$pid = trim(shell_exec($checkCmd));
+
+if (!empty($pid)) {
+    echo "⚠️  Porta $port já está em uso pelo processo $pid\n";
+    echo "🔄 Matando processo anterior...\n";
+    shell_exec("kill -9 $pid 2>/dev/null");
+    sleep(1);
+    echo "✅ Processo anterior encerrado\n\n";
+}
+
 // Criar socket
 $socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
 if ($socket === false) {
@@ -15,9 +27,11 @@ if ($socket === false) {
 }
 
 socket_set_option($socket, SOL_SOCKET, SO_REUSEADDR, 1);
+socket_set_option($socket, SOL_SOCKET, SO_REUSEPORT, 1);
 
 if (!socket_bind($socket, $host, $port)) {
-    die("Erro ao bind socket: " . socket_strerror(socket_last_error()) . "\n");
+    $error = socket_strerror(socket_last_error());
+    die("❌ Erro ao bind socket na porta $port: $error\nVerifique se você tem permissão (porta < 1024 requer root)\n");
 }
 
 if (!socket_listen($socket, 5)) {

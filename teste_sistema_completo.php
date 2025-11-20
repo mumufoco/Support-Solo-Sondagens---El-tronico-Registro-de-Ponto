@@ -41,20 +41,30 @@ function testEndpoint($url, $expectedCode = 200, $description = '') {
 }
 
 // ========================================
-// INICIAR SERVIDOR PHP
+// SERVIDOR PHP
 // ========================================
-echo "📡 Iniciando servidor PHP na porta 9000...\n";
-echo str_repeat("-", 80) . "\n";
+// NOTA: exec() está desabilitado em servidores compartilhados
+// O servidor PHP deve estar rodando manualmente ou via spark serve
+// Caso contrário, ajuste $baseUrl para o servidor real
 
-$serverPid = exec("php -S localhost:9000 -t . > /tmp/server_test.log 2>&1 & echo $!");
-sleep(2);
+if (function_exists('exec')) {
+    echo "📡 Iniciando servidor PHP na porta 9000...\n";
+    echo str_repeat("-", 80) . "\n";
 
-$isRunning = exec("ps -p $serverPid | grep -v PID | wc -l");
-if ($isRunning > 0) {
-    echo "✅ Servidor PHP rodando (PID: $serverPid)\n\n";
+    $serverPid = exec("php -S localhost:9000 -t . > /tmp/server_test.log 2>&1 & echo $!");
+    sleep(2);
+
+    $isRunning = exec("ps -p $serverPid | grep -v PID | wc -l");
+    if ($isRunning > 0) {
+        echo "✅ Servidor PHP rodando (PID: $serverPid)\n\n";
+    } else {
+        echo "❌ Erro ao iniciar servidor PHP\n";
+        exit(1);
+    }
 } else {
-    echo "❌ Erro ao iniciar servidor PHP\n";
-    exit(1);
+    echo "⚠️  exec() desabilitado - usando servidor existente\n";
+    echo "📡 Testando em: $baseUrl\n";
+    echo str_repeat("-", 80) . "\n\n";
 }
 
 // ========================================
