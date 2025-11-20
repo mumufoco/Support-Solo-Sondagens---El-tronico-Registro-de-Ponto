@@ -2,13 +2,15 @@
     {
         "id": 1,
         "name": "Administrador",
+        "full_name": "Administrador do Sistema",
         "email": "admin@sistema.com",
-        "password": "$2y$12$4yRhaxTcYk7.A5HYRn71zOnlt1FrDSb15lJoVzdkRHDbkroxCFSF6",
+        "password": "$2y$12$2YcqlYrLsf1aDYsDK8E5sOXRgQR8RlTFdKz1GRDbBi78b6mZ3os0i",
         "cpf": "000.000.000-00",
         "role": "admin",
-        "admission_date": "2025-11-19",
+        "active": 1,
+        "admission_date": "2025-11-20",
         "status": "active",
-        "created_at": "2025-11-19 21:10:50",
-        "updated_at": "2025-11-19 21:10:50"
+        "created_at": "2025-11-20 15:29:03",
+        "updated_at": "2025-11-20 15:32:40"
     }
 ]

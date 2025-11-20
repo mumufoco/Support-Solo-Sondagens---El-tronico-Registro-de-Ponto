@@ -3,12 +3,12 @@
         "id": 1,
         "key": "self_registration_enabled",
         "value": "false",
-        "created_at": "2025-11-19 21:10:50"
+        "created_at": "2025-11-20 15:29:03"
     },
     {
         "id": 2,
         "key": "system_installed",
         "value": "true",
-        "created_at": "2025-11-19 21:10:50"
+        "created_at": "2025-11-20 15:29:03"
     }
 ]
