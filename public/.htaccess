@@ -36,18 +36,17 @@ DirectoryIndex index.php index.html
     php_value post_max_size 64M
     php_value max_execution_time 300
     php_value memory_limit 256M
-
-    # Session configuration (CRITICAL for HTTPS)
-    php_value session.cookie_secure 1
-    php_value session.cookie_httponly 1
-    php_value session.cookie_samesite "Lax"
-    php_value session.gc_probability 1
-    php_value session.gc_divisor 100
-    php_value session.gc_maxlifetime 7200
 </IfModule>
+
+# Session configuration - Moved to .user.ini for PHP-FPM compatibility
+# Note: .user.ini file should contain these settings for PHP-FPM:
+# session.cookie_secure = 1
+# session.cookie_httponly = 1
+# session.cookie_samesite = "Lax"
+# session.gc_probability = 1
+# session.gc_divisor = 100
+# session.gc_maxlifetime = 7200
 
 # PHP settings for PHP-FPM/CGI (cPanel default)
-<IfModule mod_fcgid.c>
-    FcgidInitialEnv session.cookie_secure 1
-    FcgidInitialEnv session.cookie_httponly 1
-</IfModule>
+# Session settings removed to prevent conflicts with CodeIgniter's ini_set()
+# CodeIgniter will handle session configuration via app/Config/Session.php
