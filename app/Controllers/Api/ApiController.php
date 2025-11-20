@@ -14,13 +14,22 @@ use CodeIgniter\HTTP\ResponseInterface;
  */
 class ApiController extends BaseController
 {
-    protected EmployeeModel $employeeModel;
-    protected DeepFaceService $deepFaceService;
+    protected ?EmployeeModel $employeeModel = null;
+    protected ?DeepFaceService $deepFaceService = null;
 
     public function __construct()
     {
-        $this->employeeModel = new EmployeeModel();
-        $this->deepFaceService = new DeepFaceService();
+        // Check if using JSON database (no MySQL)
+        if (file_exists(ROOTPATH . 'writable/INSTALLED')) {
+            return; // JSON mode - services not needed
+        }
+
+        try {
+            $this->employeeModel = new EmployeeModel();
+            $this->deepFaceService = new DeepFaceService();
+        } catch (\Exception $e) {
+            // Database not configured
+        }
     }
 
     /**
@@ -90,7 +99,8 @@ class ApiController extends BaseController
         ];
 
         // Check if using JSON database
-        if (file_exists(WRITEPATH . 'INSTALLED')) {
+        $installedFile = ROOTPATH . 'writable/INSTALLED';
+        if (file_exists($installedFile)) {
             $health['database']['type'] = 'JSON';
             $health['database']['status'] = 'operational';
             $health['database']['connected'] = true;

@@ -12,7 +12,7 @@ class LogoutController extends BaseController
     public function __construct()
     {
         // Check if using JSON database (no MySQL)
-        if (file_exists(WRITEPATH . 'INSTALLED')) {
+        if (file_exists(ROOTPATH . "writable/INSTALLED")) {
             return; // JSON mode - model not needed
         }
 

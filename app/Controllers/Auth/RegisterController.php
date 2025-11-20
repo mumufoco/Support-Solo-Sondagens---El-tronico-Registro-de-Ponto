@@ -18,7 +18,7 @@ class RegisterController extends BaseController
     public function __construct()
     {
         // Check if using JSON database (no MySQL)
-        if (file_exists(WRITEPATH . 'INSTALLED')) {
+        if (file_exists(ROOTPATH . "writable/INSTALLED")) {
             // JSON mode - models not needed
             return;
         }
