@@ -13,6 +13,11 @@ class DashboardController extends BaseController
 {
     public function index()
     {
+        // Check if using JSON database
+        if (file_exists(ROOTPATH . 'writable/INSTALLED')) {
+            return $this->indexJson();
+        }
+
         $employeeModel = new EmployeeModel();
         $timePunchModel = new TimePunchModel();
         $justificationModel = new JustificationModel();
@@ -35,6 +40,41 @@ class DashboardController extends BaseController
 
             // Estatísticas gerais
             'stats' => $this->getGeneralStats(),
+        ];
+
+        return view('admin/dashboard', $data);
+    }
+
+    /**
+     * Dashboard using JSON database
+     */
+    protected function indexJson()
+    {
+        // Load data from JSON files
+        $employeesFile = ROOTPATH . 'writable/database/employees.json';
+        $timesheetsFile = ROOTPATH . 'writable/database/timesheets.json';
+
+        $employees = file_exists($employeesFile) ? json_decode(file_get_contents($employeesFile), true) : [];
+        $timesheets = file_exists($timesheetsFile) ? json_decode(file_get_contents($timesheetsFile), true) : [];
+
+        // Calculate stats from JSON data
+        $totalEmployees = count(array_filter($employees, fn($e) => ($e['active'] ?? 0) == 1));
+        $punchesToday = count(array_filter($timesheets, fn($t) =>
+            isset($t['punch_time']) && date('Y-m-d', strtotime($t['punch_time'])) === date('Y-m-d')
+        ));
+
+        $data = [
+            'total_employees' => $totalEmployees,
+            'punches_today' => $punchesToday,
+            'pending_justifications' => 0,
+            'pending_consents' => 0,
+            'enrolled_biometrics' => 0,
+            'punches_last_7_days' => [],
+            'alerts' => [],
+            'stats' => [
+                'database_type' => 'JSON',
+                'installation_date' => file_get_contents(ROOTPATH . 'writable/INSTALLED')
+            ],
         ];
 
         return view('admin/dashboard', $data);

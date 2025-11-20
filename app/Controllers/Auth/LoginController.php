@@ -8,13 +8,20 @@ use App\Models\AuditLogModel;
 
 class LoginController extends BaseController
 {
-    protected $employeeModel;
-    protected $auditModel;
+    protected ?EmployeeModel $employeeModel = null;
+    protected ?AuditLogModel $auditModel = null;
 
     public function __construct()
     {
-        $this->employeeModel = new EmployeeModel();
-        $this->auditModel = new AuditLogModel();
+        // Check if using JSON database (no MySQL)
+        if (!file_exists(ROOTPATH . 'writable/INSTALLED')) {
+            try {
+                $this->employeeModel = new EmployeeModel();
+                $this->auditModel = new AuditLogModel();
+            } catch (\Exception $e) {
+                // Database not configured
+            }
+        }
     }
 
     /**
@@ -55,74 +62,101 @@ class LoginController extends BaseController
         if ($this->isBruteForceBlocked($email)) {
             $this->setError('Muitas tentativas de login. Tente novamente em 15 minutos.');
 
-            $this->auditModel->log(
-                null,
-                'LOGIN_BLOCKED',
-                'employees',
-                null,
-                null,
-                null,
-                "Tentativa de login bloqueada por brute force: {$email}",
-                'warning'
-            );
+            if ($this->auditModel) {
+                $this->auditModel->log(
+                    null,
+                    'LOGIN_BLOCKED',
+                    'employees',
+                    null,
+                    null,
+                    null,
+                    "Tentativa de login bloqueada por brute force: {$email}",
+                    'warning'
+                );
+            }
 
             return redirect()->back();
         }
 
         // Find user by email
-        $user = $this->employeeModel->findByEmail($email);
+        // Check if using JSON database
+        if (file_exists(ROOTPATH . 'writable/INSTALLED')) {
+            $user = $this->findUserFromJson($email);
+        } else {
+            $user = $this->employeeModel ? $this->employeeModel->findByEmail($email) : null;
+        }
 
         if (!$user) {
             $this->incrementLoginAttempts($email);
             $this->setError('E-mail ou senha inválidos.');
 
-            $this->auditModel->log(
-                null,
-                'LOGIN_FAILED',
-                'employees',
-                null,
-                null,
-                null,
-                "Tentativa de login com e-mail inexistente: {$email}",
-                'warning'
-            );
+            if ($this->auditModel) {
+                $this->auditModel->log(
+                    null,
+                    'LOGIN_FAILED',
+                    'employees',
+                    null,
+                    null,
+                    null,
+                    "Tentativa de login com e-mail inexistente: {$email}",
+                    'warning'
+                );
+            }
 
             return redirect()->back()->withInput();
         }
 
         // Check if user is active
-        if (!$user->active) {
+        $isActive = is_object($user) ? $user->active : ($user['active'] ?? 1);
+        if (!$isActive) {
             $this->setError('Sua conta está inativa. Entre em contato com o administrador.');
 
-            $this->auditModel->log(
-                $user->id,
-                'LOGIN_FAILED',
-                'employees',
-                $user->id,
-                null,
-                null,
-                'Tentativa de login com conta inativa',
-                'warning'
-            );
+            $userId = is_object($user) ? $user->id : ($user['id'] ?? null);
+            if ($this->auditModel) {
+                $this->auditModel->log(
+                    $userId,
+                    'LOGIN_FAILED',
+                    'employees',
+                    $userId,
+                    null,
+                    null,
+                    'Tentativa de login com conta inativa',
+                    'warning'
+                );
+            }
 
             return redirect()->back()->withInput();
         }
 
         // Verify password
-        if (!$this->employeeModel->verifyPassword($password, $user->password)) {
+        $userPassword = is_object($user) ? $user->password : ($user['password'] ?? '');
+        $passwordValid = false;
+
+        if (file_exists(ROOTPATH . 'writable/INSTALLED')) {
+            // JSON mode - verify directly
+            $passwordValid = password_verify($password, $userPassword);
+        } else {
+            // MySQL mode - use model method
+            $passwordValid = $this->employeeModel ? $this->employeeModel->verifyPassword($password, $userPassword) : false;
+        }
+
+        if (!$passwordValid) {
             $this->incrementLoginAttempts($email);
             $this->setError('E-mail ou senha inválidos.');
 
-            $this->auditModel->log(
-                $user->id,
-                'LOGIN_FAILED',
-                'employees',
-                $user->id,
-                null,
-                null,
-                'Tentativa de login com senha incorreta',
-                'warning'
-            );
+            $userId = is_object($user) ? $user->id : ($user['id'] ?? null);
+            if ($this->auditModel) {
+                $this->auditModel->log(
+                    $userId,
+                    'LOGIN_FAILED',
+                    'employees',
+                    $userId,
+                    null,
+                    null,
+                    'Tentativa de login com senha incorreta',
+                    'warning'
+                );
+            }
 
             return redirect()->back()->withInput();
         }
@@ -130,12 +164,18 @@ class LoginController extends BaseController
         // Clear login attempts
         $this->clearLoginAttempts($email);
 
+        // Extract user data (works for both object and array)
+        $userId = is_object($user) ? $user->id : ($user['id'] ?? null);
+        $userName = is_object($user) ? ($user->name ?? $user->full_name ?? '') : ($user['name'] ?? $user['full_name'] ?? '');
+        $userEmail = is_object($user) ? $user->email : ($user['email'] ?? '');
+        $userRole = is_object($user) ? $user->role : ($user['role'] ?? 'funcionario');
+
         // Create session
         $sessionData = [
-            'user_id'   => $user->id,
-            'user_name' => $user->name,
-            'user_email' => $user->email,
-            'user_role'  => $user->role,
+            'user_id'   => $userId,
+            'user_name' => $userName,
+            'user_email' => $userEmail,
+            'user_role'  => $userRole,
             'logged_in'  => true,
         ];
 
@@ -147,26 +187,29 @@ class LoginController extends BaseController
         $this->session->regenerate();
 
         // Set remember me cookie if requested
-        if ($remember) {
-            $this->setRememberMeCookie($user->id);
+        if ($remember && $userId) {
+            $this->setRememberMeCookie($userId);
         }
 
         // Log successful login
-        $this->auditModel->log(
-            $user->id,
-            'LOGIN',
-            'employees',
-            $user->id,
-            null,
-            null,
-            'Login bem-sucedido',
-            'info'
-        );
+        if ($this->auditModel) {
+            $this->auditModel->log(
+                $userId,
+                'LOGIN',
+                'employees',
+                $userId,
+                null,
+                null,
+                'Login bem-sucedido',
+                'info'
+            );
+        }
 
-        $this->setSuccess("Bem-vindo(a), {$user->name}!");
+        $welcomeName = $userName ?: 'Usuário';
+        $this->setSuccess("Bem-vindo(a), {$welcomeName}!");
 
         // Redirect based on role
-        return $this->redirectByRole($user->role);
+        return $this->redirectByRole($userRole);
     }
 
     /**
@@ -256,5 +299,31 @@ class LoginController extends BaseController
         $redirect = $redirects[$role] ?? '/dashboard';
 
         return redirect()->to($redirect);
+    }
+
+    /**
+     * Find user from JSON database
+     */
+    protected function findUserFromJson(string $email): ?array
+    {
+        $employeesFile = ROOTPATH . 'writable/database/employees.json';
+
+        if (!file_exists($employeesFile)) {
+            return null;
+        }
+
+        $employees = json_decode(file_get_contents($employeesFile), true);
+
+        if (!is_array($employees)) {
+            return null;
+        }
+
+        foreach ($employees as $employee) {
+            if (isset($employee['email']) && $employee['email'] === $email) {
+                return $employee;
+            }
+        }
+
+        return null;
     }
 }
