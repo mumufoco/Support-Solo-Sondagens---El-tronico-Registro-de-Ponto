@@ -53,6 +53,16 @@ class HealthController extends BaseController
      */
     private function checkDatabase(): array
     {
+        // Check if using JSON database
+        if (file_exists(ROOTPATH . 'writable/INSTALLED')) {
+            return [
+                'status' => 'ok',
+                'driver' => 'JSON',
+                'database' => 'File Storage',
+                'info' => 'Using JSON file storage',
+            ];
+        }
+
         try {
             $db = \Config\Database::connect();
 

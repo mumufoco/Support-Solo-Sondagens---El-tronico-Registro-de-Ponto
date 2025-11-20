@@ -58,8 +58,20 @@ abstract class BaseController extends Controller
 
         // Load current user if authenticated
         if ($this->session->has('user_id')) {
-            $employeeModel = new \App\Models\EmployeeModel();
-            $this->currentUser = $employeeModel->find($this->session->get('user_id'));
+            // Check if using JSON database
+            if (file_exists(ROOTPATH . 'writable/INSTALLED')) {
+                // JSON mode - load from JSON file
+                $this->currentUser = $this->loadUserFromJson($this->session->get('user_id'));
+            } else {
+                // MySQL mode - load from database
+                try {
+                    $employeeModel = new \App\Models\EmployeeModel();
+                    $this->currentUser = $employeeModel->find($this->session->get('user_id'));
+                } catch (\Exception $e) {
+                    // Database error - user not loaded
+                    $this->currentUser = null;
+                }
+            }
         }
     }
 
@@ -262,5 +274,32 @@ abstract class BaseController extends Controller
         }
 
         return csrf_hash() === $token;
+    }
+
+    /**
+     * Load user from JSON database
+     */
+    protected function loadUserFromJson(int $userId): ?object
+    {
+        $employeesFile = ROOTPATH . 'writable/database/employees.json';
+
+        if (!file_exists($employeesFile)) {
+            return null;
+        }
+
+        $employees = json_decode(file_get_contents($employeesFile), true);
+
+        if (!is_array($employees)) {
+            return null;
+        }
+
+        foreach ($employees as $employee) {
+            if (isset($employee['id']) && $employee['id'] == $userId) {
+                // Convert array to object for consistency with MySQL mode
+                return (object) $employee;
+            }
+        }
+
+        return null;
     }
 }
