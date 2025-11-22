@@ -31,7 +31,7 @@ class AuditLogModel extends Model
     protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';
     protected $createdField  = 'created_at';
-    protected $updatedField  = 'updated_at';
+    protected $updatedField  = ''; // Audit logs are immutable - no updates
 
     // Callbacks
     protected $allowCallbacks = false; // DISABLED: Causing type errors in PHP 8.4+

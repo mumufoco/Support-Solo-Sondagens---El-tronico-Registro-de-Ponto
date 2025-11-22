@@ -12,7 +12,7 @@ class CustomRules
     /**
      * Valida tipo de ponto (entrada, saída, pausa, etc.)
      */
-    public function valid_punch_type(string $value, string $params = null, array $data = []): bool
+    public function valid_punch_type(string $value, ?string $params = null, array $data = []): bool
     {
         $validTypes = ['entrada', 'saida', 'pausa_inicio', 'pausa_fim', 'extra_entrada', 'extra_saida'];
         return in_array(strtolower($value), $validTypes, true);
@@ -21,7 +21,7 @@ class CustomRules
     /**
      * Valida latitude
      */
-    public function valid_latitude(string $value, string $params = null, array $data = []): bool
+    public function valid_latitude(string $value, ?string $params = null, array $data = []): bool
     {
         if (empty($value)) {
             return true; // permit_empty handle this
@@ -34,7 +34,7 @@ class CustomRules
     /**
      * Valida longitude
      */
-    public function valid_longitude(string $value, string $params = null, array $data = []): bool
+    public function valid_longitude(string $value, ?string $params = null, array $data = []): bool
     {
         if (empty($value)) {
             return true; // permit_empty handle this
@@ -47,7 +47,7 @@ class CustomRules
     /**
      * Valida imagem base64
      */
-    public function valid_base64_image(string $value, string $params = null, array $data = []): bool
+    public function valid_base64_image(string $value, ?string $params = null, array $data = []): bool
     {
         if (empty($value)) {
             return true; // permit_empty handle this
@@ -74,7 +74,7 @@ class CustomRules
     /**
      * Valida tamanho máximo de arquivo (em bytes)
      */
-    public function max_file_size(string $value, string $params = null, array $data = []): bool
+    public function max_file_size(string $value, ?string $params = null, array $data = []): bool
     {
         if (empty($value) || empty($params)) {
             return true;
@@ -98,7 +98,7 @@ class CustomRules
     /**
      * Valida senha forte
      */
-    public function strong_password(string $value, string $params = null, array $data = []): bool
+    public function strong_password(string $value, ?string $params = null, array $data = []): bool
     {
         if (strlen($value) < 8) {
             return false;
@@ -126,7 +126,7 @@ class CustomRules
     /**
      * Valida CPF brasileiro
      */
-    public function valid_cpf(string $value, string $params = null, array $data = []): bool
+    public function valid_cpf(string $value, ?string $params = null, array $data = []): bool
     {
         $cpf = preg_replace('/[^0-9]/', '', $value);
 
@@ -162,7 +162,7 @@ class CustomRules
     /**
      * Valida CNPJ brasileiro
      */
-    public function valid_cnpj(string $value, string $params = null, array $data = []): bool
+    public function valid_cnpj(string $value, ?string $params = null, array $data = []): bool
     {
         $cnpj = preg_replace('/[^0-9]/', '', $value);
 
@@ -205,7 +205,7 @@ class CustomRules
     /**
      * Valida telefone brasileiro
      */
-    public function valid_phone_br(string $value, string $params = null, array $data = []): bool
+    public function valid_phone_br(string $value, ?string $params = null, array $data = []): bool
     {
         if (empty($value)) {
             return true; // permit_empty handle this
@@ -237,7 +237,7 @@ class CustomRules
     /**
      * Valida horário no formato HH:MM ou HH:MM:SS
      */
-    public function valid_time(string $value, string $params = null, array $data = []): bool
+    public function valid_time(string $value, ?string $params = null, array $data = []): bool
     {
         if (empty($value)) {
             return true; // permit_empty handle this
@@ -254,7 +254,7 @@ class CustomRules
     /**
      * Valida data no formato brasileiro (dd/mm/YYYY)
      */
-    public function valid_date_br(string $value, string $params = null, array $data = []): bool
+    public function valid_date_br(string $value, ?string $params = null, array $data = []): bool
     {
         if (empty($value)) {
             return true; // permit_empty handle this
