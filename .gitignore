@@ -65,6 +65,13 @@ writable/uploads/*
 
 writable/debugbar/*
 
+# Database files (SQLite test databases)
+writable/database/*
+!writable/database/.gitkeep
+writable/*.db
+writable/*.sqlite
+writable/*_test
+
 # Public writable directory (sessions created at runtime)
 public/writable/*
 
