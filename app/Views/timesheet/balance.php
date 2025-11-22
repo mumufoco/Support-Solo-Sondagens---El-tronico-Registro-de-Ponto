@@ -350,11 +350,11 @@
                 <i class="fas fa-table me-2"></i>Registros Detalhados
             </h5>
             <div>
-                <a href="?period=<?= $period ?>&employee_id=<?= $this->request->getGet('employee_id') ?? '' ?>"
+                <a href="?period=<?= $period ?>&employee_id=<?= $employee_id ?>"
                    class="btn btn-sm <?= !$irregularitiesOnly ? 'btn-primary' : 'btn-outline-primary' ?>">
                     Todos
                 </a>
-                <a href="?period=<?= $period ?>&irregularities=1&employee_id=<?= $this->request->getGet('employee_id') ?? '' ?>"
+                <a href="?period=<?= $period ?>&irregularities=1&employee_id=<?= $employee_id ?>"
                    class="btn btn-sm <?= $irregularitiesOnly ? 'btn-warning' : 'btn-outline-warning' ?>">
                     Apenas Irregularidades
                 </a>

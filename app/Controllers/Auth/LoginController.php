@@ -137,6 +137,7 @@ class LoginController extends BaseController
             'user_email' => $user->email,
             'user_role'  => $user->role,
             'logged_in'  => true,
+            'employee'  => (array) $user, // Full employee data for compatibility
         ];
 
         $this->session->set($sessionData);

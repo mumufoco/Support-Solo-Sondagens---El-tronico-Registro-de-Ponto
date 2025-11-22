@@ -113,6 +113,7 @@ class TimesheetController extends BaseController
             'incompleteDays' => $incompleteDays,
             'period' => $period,
             'irregularitiesOnly' => $irregularitiesOnly,
+            'employee_id' => $targetEmployeeId ?? '', // For URL generation in view
         ]);
     }
 
