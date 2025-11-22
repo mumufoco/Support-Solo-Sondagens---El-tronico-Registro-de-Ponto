@@ -13,6 +13,14 @@ class CreateReportViews extends Migration
 {
     public function up()
     {
+        // Skip view creation for SQLite - views use MySQL-specific functions
+        // that are not compatible with SQLite (DATE_FORMAT, ADDTIME, DATEDIFF, etc.)
+        // For production, use MySQL where these views will work correctly
+        if ($this->db->DBDriver === 'SQLite3') {
+            log_message('warning', 'Skipping report views creation for SQLite (MySQL-specific syntax)');
+            return;
+        }
+
         // ==================== View: Monthly Timesheet Summary ====================
         // Aggregates punch data by employee and month for fast timesheet reports
 
@@ -215,6 +223,12 @@ class CreateReportViews extends Migration
 
     public function down()
     {
+        // Skip for SQLite (views were not created)
+        if ($this->db->DBDriver === 'SQLite3') {
+            log_message('warning', 'Skipping report views drop for SQLite (not created)');
+            return;
+        }
+
         // Drop all views
         $this->db->query('DROP VIEW IF EXISTS v_biometric_status');
         $this->db->query('DROP VIEW IF EXISTS v_pending_approvals');
