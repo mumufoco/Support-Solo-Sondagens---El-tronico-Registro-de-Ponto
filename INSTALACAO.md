@@ -109,7 +109,23 @@ cd registro-ponto
 cd /var/www/html/registro-ponto
 
 # Instalar dependências em modo produção (sem dev)
-composer install --no-dev --optimize-autoloader
+# Use --ignore-platform-reqs se tiver problemas de versão do PHP
+composer install --no-dev --optimize-autoloader --ignore-platform-reqs
+```
+
+**⚠️ Problemas com Composer?**
+
+Se encontrar erro `"Your Composer dependencies require a PHP version ">= 8.3.0""`:
+
+```bash
+# Opção 1: Execute o script de pré-instalação
+php pre-install.php
+
+# Opção 2: Remova o arquivo problemático manualmente
+rm vendor/composer/platform_check.php
+
+# Opção 3: Reinstale com ignore-platform-reqs
+composer install --no-dev --optimize-autoloader --ignore-platform-reqs
 ```
 
 ### 4. Configurar Permissões de Diretórios

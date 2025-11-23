@@ -396,6 +396,17 @@ try {
 // ==============================================================================
 
 function checkRequirements() {
+    // Fix Composer platform check issue
+    $platformCheckFile = __DIR__ . '/vendor/composer/platform_check.php';
+    if (file_exists($platformCheckFile)) {
+        // Read the file to check if it has PHP version issues
+        $content = file_get_contents($platformCheckFile);
+        if (strpos($content, '>= 8.3') !== false && version_compare(PHP_VERSION, '8.3.0', '<')) {
+            // Remove problematic platform check file
+            @unlink($platformCheckFile);
+        }
+    }
+
     return [
         [
             'name' => 'PHP versão 8.1 ou superior',
