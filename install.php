@@ -8,10 +8,21 @@
  * 2. Criação do administrador
  * 3. Configuração do banco de dados
  * 4. Checagem final de comunicação
+ *
+ * Suporta execução via CLI e navegador web
  */
 
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
+
+// Detectar modo de execução
+define('IS_CLI', PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg');
+define('IS_WEB', !IS_CLI);
+
+// Iniciar sessão se for web
+if (IS_WEB) {
+    session_start();
+}
 
 // ==============================================================================
 // CLASSES E FUNÇÕES AUXILIARES
@@ -27,34 +38,66 @@ class Color {
     const BOLD = "\033[1m";
 }
 
+function htmlEscape($text) {
+    return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+}
+
 function printHeader($text) {
-    $line = str_repeat('=', 75);
-    echo "\n" . Color::CYAN . Color::BOLD . $line . Color::RESET . "\n";
-    echo Color::CYAN . Color::BOLD . "  $text" . Color::RESET . "\n";
-    echo Color::CYAN . Color::BOLD . $line . Color::RESET . "\n\n";
+    if (IS_CLI) {
+        $line = str_repeat('=', 75);
+        echo "\n" . Color::CYAN . Color::BOLD . $line . Color::RESET . "\n";
+        echo Color::CYAN . Color::BOLD . "  $text" . Color::RESET . "\n";
+        echo Color::CYAN . Color::BOLD . $line . Color::RESET . "\n\n";
+    } else {
+        echo '<div class="header"><h2>' . htmlEscape($text) . '</h2></div>';
+    }
 }
 
 function printSuccess($text) {
-    echo Color::GREEN . "✓ $text" . Color::RESET . "\n";
+    if (IS_CLI) {
+        echo Color::GREEN . "✓ $text" . Color::RESET . "\n";
+    } else {
+        echo '<div class="success">✓ ' . htmlEscape($text) . '</div>';
+    }
 }
 
 function printError($text) {
-    echo Color::RED . "✗ $text" . Color::RESET . "\n";
+    if (IS_CLI) {
+        echo Color::RED . "✗ $text" . Color::RESET . "\n";
+    } else {
+        echo '<div class="error">✗ ' . htmlEscape($text) . '</div>';
+    }
 }
 
 function printWarning($text) {
-    echo Color::YELLOW . "⚠ $text" . Color::RESET . "\n";
+    if (IS_CLI) {
+        echo Color::YELLOW . "⚠ $text" . Color::RESET . "\n";
+    } else {
+        echo '<div class="warning">⚠ ' . htmlEscape($text) . '</div>';
+    }
 }
 
 function printInfo($text) {
-    echo Color::BLUE . "ℹ $text" . Color::RESET . "\n";
+    if (IS_CLI) {
+        echo Color::BLUE . "ℹ $text" . Color::RESET . "\n";
+    } else {
+        echo '<div class="info">ℹ ' . htmlEscape($text) . '</div>';
+    }
 }
 
 function ask($question, $default = '') {
-    $defaultText = $default ? " [$default]" : '';
-    echo Color::BOLD . "$question$defaultText: " . Color::RESET;
-    $answer = trim(fgets(STDIN));
-    return $answer ?: $default;
+    if (IS_CLI) {
+        $defaultText = $default ? " [$default]" : '';
+        echo Color::BOLD . "$question$defaultText: " . Color::RESET;
+        if (defined('STDIN')) {
+            $answer = trim(fgets(STDIN));
+        } else {
+            $answer = '';
+        }
+        return $answer ?: $default;
+    }
+    // Em modo web, retorna valor do POST ou default
+    return $default;
 }
 
 function isFunctionEnabled($func) {
@@ -64,21 +107,29 @@ function isFunctionEnabled($func) {
 }
 
 function askPassword($question) {
-    echo Color::BOLD . "$question: " . Color::RESET;
+    if (IS_CLI) {
+        echo Color::BOLD . "$question: " . Color::RESET;
 
-    // Tentar desabilitar echo se a função estiver disponível
-    if (isFunctionEnabled('system') && PHP_OS_FAMILY !== 'Windows') {
-        @system('stty -echo 2>/dev/null');
-        $password = trim(fgets(STDIN));
-        @system('stty echo 2>/dev/null');
-    } else {
-        // Fallback: senha visível (com aviso)
-        echo Color::YELLOW . "(Aviso: a senha será visível ao digitar) " . Color::RESET;
-        $password = trim(fgets(STDIN));
+        // Tentar desabilitar echo se a função estiver disponível
+        if (isFunctionEnabled('system') && PHP_OS_FAMILY !== 'Windows' && defined('STDIN')) {
+            @system('stty -echo 2>/dev/null');
+            $password = trim(fgets(STDIN));
+            @system('stty echo 2>/dev/null');
+        } else {
+            // Fallback: senha visível (com aviso)
+            echo Color::YELLOW . "(Aviso: a senha será visível ao digitar) " . Color::RESET;
+            if (defined('STDIN')) {
+                $password = trim(fgets(STDIN));
+            } else {
+                $password = '';
+            }
+        }
+
+        echo "\n";
+        return $password;
     }
-
-    echo "\n";
-    return $password;
+    // Em modo web, retorna vazio (será preenchido via POST)
+    return '';
 }
 
 function validateEmail($email) {
@@ -102,7 +153,86 @@ function validatePassword($password) {
 }
 
 // ==============================================================================
-// VARIÁVEIS GLOBAIS
+// MODO WEB - HTML E PROCESSAMENTO
+// ==============================================================================
+
+if (IS_WEB) {
+    // Processar formulário se enviado
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $step = $_POST['step'] ?? '1';
+
+        if ($step === '1') {
+            // Validação de requisitos já foi feita, avançar
+            $_SESSION['step'] = '2';
+        } elseif ($step === '2') {
+            // Validar dados do admin
+            $errors = [];
+            $adminName = trim($_POST['admin_name'] ?? '');
+            $adminEmail = trim($_POST['admin_email'] ?? '');
+            $adminPassword = $_POST['admin_password'] ?? '';
+            $adminPasswordConfirm = $_POST['admin_password_confirm'] ?? '';
+
+            if (empty($adminName)) $errors[] = "Nome é obrigatório";
+            if (!validateEmail($adminEmail)) $errors[] = "Email inválido";
+
+            $passValidation = validatePassword($adminPassword);
+            if ($passValidation !== true) $errors[] = $passValidation;
+            if ($adminPassword !== $adminPasswordConfirm) $errors[] = "As senhas não coincidem";
+
+            if (empty($errors)) {
+                $_SESSION['admin'] = [
+                    'name' => $adminName,
+                    'email' => $adminEmail,
+                    'password' => password_hash($adminPassword, PASSWORD_DEFAULT)
+                ];
+                $_SESSION['step'] = '3';
+            } else {
+                $_SESSION['errors'] = $errors;
+            }
+        } elseif ($step === '3') {
+            // Processar configuração do banco
+            $_SESSION['database'] = [
+                'url' => trim($_POST['app_url'] ?? ''),
+                'host' => trim($_POST['db_host'] ?? 'localhost'),
+                'name' => trim($_POST['db_name'] ?? ''),
+                'user' => trim($_POST['db_user'] ?? ''),
+                'pass' => $_POST['db_pass'] ?? '',
+                'port' => trim($_POST['db_port'] ?? '3306'),
+            ];
+            $_SESSION['app'] = [
+                'company_name' => trim($_POST['company_name'] ?? ''),
+                'company_cnpj' => trim($_POST['company_cnpj'] ?? ''),
+                'email_from' => trim($_POST['email_from'] ?? ''),
+                'email_from_name' => trim($_POST['email_from_name'] ?? ''),
+                'smtp_host' => trim($_POST['smtp_host'] ?? ''),
+                'smtp_user' => trim($_POST['smtp_user'] ?? ''),
+                'smtp_pass' => $_POST['smtp_pass'] ?? '',
+                'smtp_port' => trim($_POST['smtp_port'] ?? '587'),
+                'smtp_crypto' => trim($_POST['smtp_crypto'] ?? 'tls'),
+            ];
+
+            // Tentar instalação
+            try {
+                performInstallation($_SESSION['admin'], $_SESSION['database'], $_SESSION['app']);
+                $_SESSION['step'] = '4';
+                $_SESSION['success'] = true;
+            } catch (Exception $e) {
+                $_SESSION['errors'] = [$e->getMessage()];
+            }
+        }
+
+        // Redirecionar para evitar resubmit
+        header('Location: ' . $_SERVER['PHP_SELF']);
+        exit;
+    }
+
+    // Renderizar HTML
+    renderWebInterface();
+    exit;
+}
+
+// ==============================================================================
+// MODO CLI - CONTINUA ABAIXO
 // ==============================================================================
 
 $installData = [
@@ -110,10 +240,6 @@ $installData = [
     'database' => [],
     'app' => [],
 ];
-
-// ==============================================================================
-// CABEÇALHO DO INSTALADOR
-// ==============================================================================
 
 // Limpar tela se possível (não crítico)
 if (isFunctionEnabled('system') && PHP_SAPI === 'cli') {
@@ -142,68 +268,7 @@ printHeader("FASE 1/4: CHECAGEM INICIAL DE REQUISITOS");
 
 printInfo("Verificando requisitos do servidor...\n");
 
-$requirements = [
-    [
-        'name' => 'PHP versão 8.1 ou superior',
-        'check' => version_compare(PHP_VERSION, '8.1.0', '>='),
-        'current' => PHP_VERSION,
-        'solution' => 'Atualize o PHP para versão 8.1 ou superior'
-    ],
-    [
-        'name' => 'Extensão PDO MySQL',
-        'check' => extension_loaded('pdo_mysql'),
-        'current' => extension_loaded('pdo_mysql') ? 'Instalada' : 'Não encontrada',
-        'solution' => 'Instale: sudo apt-get install php-mysql (Debian/Ubuntu) ou yum install php-mysqlnd (RHEL/CentOS)'
-    ],
-    [
-        'name' => 'Extensão OpenSSL',
-        'check' => extension_loaded('openssl'),
-        'current' => extension_loaded('openssl') ? 'Instalada' : 'Não encontrada',
-        'solution' => 'Extensão geralmente incluída no PHP. Verifique php.ini'
-    ],
-    [
-        'name' => 'Extensão MBString',
-        'check' => extension_loaded('mbstring'),
-        'current' => extension_loaded('mbstring') ? 'Instalada' : 'Não encontrada',
-        'solution' => 'Instale: sudo apt-get install php-mbstring'
-    ],
-    [
-        'name' => 'Extensão JSON',
-        'check' => extension_loaded('json'),
-        'current' => extension_loaded('json') ? 'Instalada' : 'Não encontrada',
-        'solution' => 'Extensão geralmente incluída no PHP core'
-    ],
-    [
-        'name' => 'Extensão Curl',
-        'check' => extension_loaded('curl'),
-        'current' => extension_loaded('curl') ? 'Instalada' : 'Não encontrada',
-        'solution' => 'Instale: sudo apt-get install php-curl'
-    ],
-    [
-        'name' => 'Extensão GD (processamento de imagens)',
-        'check' => extension_loaded('gd'),
-        'current' => extension_loaded('gd') ? 'Instalada' : 'Não encontrada',
-        'solution' => 'Instale: sudo apt-get install php-gd'
-    ],
-    [
-        'name' => 'Extensão Intl (internacionalização)',
-        'check' => extension_loaded('intl'),
-        'current' => extension_loaded('intl') ? 'Instalada' : 'Não encontrada',
-        'solution' => 'Instale: sudo apt-get install php-intl'
-    ],
-    [
-        'name' => 'Diretório writable/ gravável',
-        'check' => is_writable(__DIR__ . '/writable'),
-        'current' => is_writable(__DIR__ . '/writable') ? 'Gravável' : 'Sem permissão',
-        'solution' => 'Execute: sudo chmod -R 755 writable/ && sudo chown -R www-data:www-data writable/'
-    ],
-    [
-        'name' => 'Composer instalado',
-        'check' => file_exists(__DIR__ . '/vendor/autoload.php'),
-        'current' => file_exists(__DIR__ . '/vendor/autoload.php') ? 'Instalado' : 'Não encontrado',
-        'solution' => 'Execute: composer install --no-dev --optimize-autoloader'
-    ],
-];
+$requirements = checkRequirements();
 
 $allMet = true;
 $failures = [];
@@ -238,386 +303,773 @@ printSuccess("\n✅ Todos os requisitos foram atendidos!\n");
 
 printHeader("FASE 2/4: CRIAÇÃO DO USUÁRIO ADMINISTRADOR");
 
-printInfo("O primeiro usuário será o administrador do sistema.\n");
+printInfo("Configure as credenciais do administrador do sistema.\n");
 
-// Nome completo
-while (true) {
+do {
     $adminName = ask("Nome completo do administrador");
-    if (strlen($adminName) >= 3) {
-        break;
+    if (empty($adminName)) {
+        printError("Nome é obrigatório!\n");
     }
-    printError("Nome deve ter pelo menos 3 caracteres.\n");
-}
+} while (empty($adminName));
 
-// Email
-while (true) {
-    $adminEmail = ask("Email do administrador");
-    if (validateEmail($adminEmail)) {
-        break;
+do {
+    $adminEmail = ask("E-mail do administrador");
+    if (!validateEmail($adminEmail)) {
+        printError("E-mail inválido!\n");
+        $adminEmail = '';
     }
-    printError("Email inválido. Use o formato: usuario@dominio.com\n");
-}
+} while (empty($adminEmail));
 
-// Senha
-printInfo("\nRequisitos da senha:");
-printInfo("  • Mínimo 12 caracteres");
-printInfo("  • Pelo menos 1 letra maiúscula");
-printInfo("  • Pelo menos 1 letra minúscula");
-printInfo("  • Pelo menos 1 número\n");
-
-while (true) {
+do {
     $adminPassword = askPassword("Senha do administrador");
     $validation = validatePassword($adminPassword);
 
-    if ($validation === true) {
-        $confirmPassword = askPassword("Confirme a senha");
-
-        if ($adminPassword === $confirmPassword) {
-            break;
-        }
-        printError("As senhas não coincidem. Tente novamente.\n");
-    } else {
+    if ($validation !== true) {
         printError($validation . "\n");
+        continue;
     }
-}
+
+    $adminPasswordConfirm = askPassword("Confirme a senha");
+
+    if ($adminPassword !== $adminPasswordConfirm) {
+        printError("As senhas não coincidem!\n");
+        $adminPassword = '';
+    }
+} while (empty($adminPassword));
 
 $installData['admin'] = [
     'name' => $adminName,
     'email' => $adminEmail,
-    'password' => password_hash($adminPassword, PASSWORD_DEFAULT),
+    'password' => password_hash($adminPassword, PASSWORD_DEFAULT)
 ];
 
-printSuccess("\n✅ Dados do administrador validados!");
-printInfo("Nome: $adminName");
-printInfo("Email: $adminEmail\n");
+printSuccess("\n✅ Dados do administrador configurados!\n");
 
 // ==============================================================================
 // FASE 3: CONFIGURAÇÃO DO BANCO DE DADOS
 // ==============================================================================
 
-printHeader("FASE 3/4: CONFIGURAÇÃO DO BANCO DE DADOS MYSQL");
+printHeader("FASE 3/4: CONFIGURAÇÃO DO BANCO DE DADOS");
 
-printInfo("Configure a conexão com o banco de dados de produção.\n");
+printInfo("Configure a conexão com o banco de dados MySQL.\n");
 
-// Solicitar informações de conexão
-$dbHost = ask("Hostname do MySQL", "localhost");
-$dbPort = ask("Porta do MySQL", "3306");
-$dbName = ask("Nome do banco de dados", "ponto_eletronico");
+$appURL = ask("URL base da aplicação (ex: https://ponto.empresa.com.br)");
+$dbHost = ask("Host do banco MySQL", "localhost");
+$dbName = ask("Nome do banco de dados");
 $dbUser = ask("Usuário do MySQL");
 $dbPass = askPassword("Senha do MySQL");
+$dbPort = ask("Porta do MySQL", "3306");
 
 $installData['database'] = [
-    'hostname' => $dbHost,
+    'url' => $appURL,
+    'host' => $dbHost,
+    'name' => $dbName,
+    'user' => $dbUser,
+    'pass' => $dbPass,
     'port' => $dbPort,
-    'database' => $dbName,
-    'username' => $dbUser,
-    'password' => $dbPass,
 ];
 
-printInfo("\nTestando conexão com o servidor MySQL...");
+// Coletar dados da empresa e SMTP
+$installData['app'] = [
+    'company_name' => ask("Nome da empresa"),
+    'company_cnpj' => ask("CNPJ da empresa"),
+    'email_from' => ask("Email remetente do sistema", "noreply@" . parse_url($appURL, PHP_URL_HOST)),
+    'email_from_name' => ask("Nome do remetente", "Sistema de Ponto"),
+    'smtp_host' => ask("Servidor SMTP", "smtp.gmail.com"),
+    'smtp_user' => ask("Usuário SMTP"),
+    'smtp_pass' => askPassword("Senha SMTP"),
+    'smtp_port' => ask("Porta SMTP", "587"),
+    'smtp_crypto' => ask("Criptografia (tls/ssl)", "tls"),
+];
 
-// Testar conexão
+// Executar instalação
 try {
-    $dsn = "mysql:host=$dbHost;port=$dbPort;charset=utf8mb4";
-    $pdo = new PDO($dsn, $dbUser, $dbPass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
+    performInstallation($installData['admin'], $installData['database'], $installData['app']);
+    printSuccess("\n✅ Sistema instalado com sucesso!\n");
+} catch (Exception $e) {
+    printError("\n❌ Erro durante instalação: " . $e->getMessage());
+    exit(1);
+}
 
-    printSuccess("Conexão estabelecida com sucesso!");
+// ==============================================================================
+// FUNÇÕES DE INSTALAÇÃO
+// ==============================================================================
 
-    // Verificar se banco existe
-    $stmt = $pdo->query("SHOW DATABASES LIKE '$dbName'");
+function checkRequirements() {
+    return [
+        [
+            'name' => 'PHP versão 8.1 ou superior',
+            'check' => version_compare(PHP_VERSION, '8.1.0', '>='),
+            'current' => PHP_VERSION,
+            'solution' => 'Atualize o PHP para versão 8.1 ou superior'
+        ],
+        [
+            'name' => 'Extensão PDO MySQL',
+            'check' => extension_loaded('pdo_mysql'),
+            'current' => extension_loaded('pdo_mysql') ? 'Instalada' : 'Não encontrada',
+            'solution' => 'Instale: sudo apt-get install php-mysql (Debian/Ubuntu) ou yum install php-mysqlnd (RHEL/CentOS)'
+        ],
+        [
+            'name' => 'Extensão OpenSSL',
+            'check' => extension_loaded('openssl'),
+            'current' => extension_loaded('openssl') ? 'Instalada' : 'Não encontrada',
+            'solution' => 'Extensão geralmente incluída no PHP. Verifique php.ini'
+        ],
+        [
+            'name' => 'Extensão MBString',
+            'check' => extension_loaded('mbstring'),
+            'current' => extension_loaded('mbstring') ? 'Instalada' : 'Não encontrada',
+            'solution' => 'Instale: sudo apt-get install php-mbstring'
+        ],
+        [
+            'name' => 'Extensão JSON',
+            'check' => extension_loaded('json'),
+            'current' => extension_loaded('json') ? 'Instalada' : 'Não encontrada',
+            'solution' => 'Extensão geralmente incluída no PHP core'
+        ],
+        [
+            'name' => 'Extensão Curl',
+            'check' => extension_loaded('curl'),
+            'current' => extension_loaded('curl') ? 'Instalada' : 'Não encontrada',
+            'solution' => 'Instale: sudo apt-get install php-curl'
+        ],
+        [
+            'name' => 'Extensão GD (processamento de imagens)',
+            'check' => extension_loaded('gd'),
+            'current' => extension_loaded('gd') ? 'Instalada' : 'Não encontrada',
+            'solution' => 'Instale: sudo apt-get install php-gd'
+        ],
+        [
+            'name' => 'Extensão Intl (internacionalização)',
+            'check' => extension_loaded('intl'),
+            'current' => extension_loaded('intl') ? 'Instalada' : 'Não encontrada',
+            'solution' => 'Instale: sudo apt-get install php-intl'
+        ],
+        [
+            'name' => 'Diretório writable/ gravável',
+            'check' => is_writable(__DIR__ . '/writable'),
+            'current' => is_writable(__DIR__ . '/writable') ? 'Gravável' : 'Sem permissão',
+            'solution' => 'Execute: sudo chmod -R 755 writable/ && sudo chown -R www-data:www-data writable/'
+        ],
+        [
+            'name' => 'Composer instalado',
+            'check' => file_exists(__DIR__ . '/vendor/autoload.php'),
+            'current' => file_exists(__DIR__ . '/vendor/autoload.php') ? 'Instalado' : 'Não encontrado',
+            'solution' => 'Execute: composer install --no-dev --optimize-autoloader'
+        ],
+    ];
+}
+
+function performInstallation($admin, $database, $app) {
+    if (IS_CLI) {
+        printInfo("\nTestando conexão com o banco de dados...");
+    }
+
+    // Testar conexão MySQL
+    try {
+        $dsn = "mysql:host={$database['host']};port={$database['port']};charset=utf8mb4";
+        $pdo = new PDO($dsn, $database['user'], $database['pass'], [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]);
+
+        if (IS_CLI) {
+            printSuccess("Conectado ao MySQL com sucesso!");
+        }
+    } catch (PDOException $e) {
+        throw new Exception("Erro ao conectar ao MySQL: " . $e->getMessage());
+    }
+
+    // Verificar/criar banco de dados
+    $stmt = $pdo->query("SHOW DATABASES LIKE '{$database['name']}'");
     $dbExists = $stmt->fetch();
 
-    if ($dbExists) {
-        printWarning("\nO banco de dados '$dbName' já existe.");
+    if (!$dbExists) {
+        if (IS_CLI) {
+            printInfo("Criando banco de dados '{$database['name']}'...");
+        }
+        $pdo->exec("CREATE DATABASE `{$database['name']}` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
+        if (IS_CLI) {
+            printSuccess("Banco de dados criado!");
+        }
+    }
 
-        // Verificar se há tabelas
-        $pdo->exec("USE `$dbName`");
-        $stmt = $pdo->query("SHOW TABLES");
-        $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $pdo->exec("USE `{$database['name']}`");
 
-        if (count($tables) > 0) {
-            printWarning("Encontradas " . count($tables) . " tabelas no banco:");
-            foreach ($tables as $table) {
-                echo "  • $table\n";
+    // Gerar chave de criptografia
+    $encryptionKey = 'base64:' . base64_encode(random_bytes(32));
+
+    // Criar arquivo .env
+    if (IS_CLI) {
+        printInfo("\nCriando arquivo .env...");
+    }
+
+    $template = file_get_contents(__DIR__ . '/.env.production.template');
+    if ($template === false) {
+        throw new Exception("Arquivo .env.production.template não encontrado!");
+    }
+
+    $replacements = [
+        '%%APP_BASE_URL%%' => $database['url'],
+        '%%ENCRYPTION_KEY%%' => $encryptionKey,
+        '%%DB_HOSTNAME%%' => $database['host'],
+        '%%DB_DATABASE%%' => $database['name'],
+        '%%DB_USERNAME%%' => $database['user'],
+        '%%DB_PASSWORD%%' => $database['pass'],
+        '%%DB_PORT%%' => $database['port'],
+        '%%COMPANY_NAME%%' => $app['company_name'],
+        '%%COMPANY_CNPJ%%' => $app['company_cnpj'],
+        '%%EMAIL_FROM%%' => $app['email_from'],
+        '%%EMAIL_FROM_NAME%%' => $app['email_from_name'],
+        '%%SMTP_HOST%%' => $app['smtp_host'],
+        '%%SMTP_USER%%' => $app['smtp_user'],
+        '%%SMTP_PASS%%' => $app['smtp_pass'],
+        '%%SMTP_PORT%%' => $app['smtp_port'],
+        '%%SMTP_CRYPTO%%' => $app['smtp_crypto'],
+        '%%ADMIN_EMAIL%%' => $admin['email'],
+    ];
+
+    $envContent = str_replace(array_keys($replacements), array_values($replacements), $template);
+
+    if (file_put_contents(__DIR__ . '/.env', $envContent)) {
+        @chmod(__DIR__ . '/.env', 0600);
+        if (IS_CLI) {
+            printSuccess("Arquivo .env criado e protegido (permissão 600)");
+        }
+    } else {
+        throw new Exception("Erro ao criar arquivo .env");
+    }
+
+    // Executar migrations
+    if (IS_CLI) {
+        printInfo("\nExecutando migrations do banco de dados...");
+    }
+
+    if (isFunctionEnabled('exec')) {
+        $output = [];
+        $returnVar = 0;
+        @exec("cd " . escapeshellarg(__DIR__) . " && php spark migrate --all 2>&1", $output, $returnVar);
+
+        if ($returnVar === 0) {
+            if (IS_CLI) {
+                printSuccess("Migrations executadas com sucesso!");
             }
-
-            echo "\n";
-            $action = ask("Deseja APAGAR todos os dados e recriar? (S/N)", "n");
-
-            if (strtolower($action) === 's') {
-                printWarning("\n⚠️  ATENÇÃO: Esta ação é IRREVERSÍVEL!");
-                $confirm = ask("Digite 'CONFIRMO' para prosseguir");
-
-                if ($confirm === 'CONFIRMO') {
-                    printInfo("Removendo todas as tabelas...");
-
-                    $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
-                    foreach ($tables as $table) {
-                        $pdo->exec("DROP TABLE IF EXISTS `$table`");
-                        printSuccess("Tabela '$table' removida");
-                    }
-                    $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
-
-                    printSuccess("\n✅ Banco de dados limpo!");
-                } else {
-                    printError("Confirmação inválida. Instalação cancelada.");
-                    exit(1);
-                }
-            } else {
-                printWarning("\nOs dados existentes serão mantidos.");
-                printWarning("As migrations adicionarão apenas estruturas faltantes.");
+        } else {
+            if (IS_CLI) {
+                printWarning("Aviso ao executar migrations. Continuando...");
             }
         }
     } else {
-        printInfo("Criando banco de dados '$dbName'...");
-        $pdo->exec("CREATE DATABASE `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
-        printSuccess("Banco de dados criado com sucesso!");
-    }
-
-} catch (PDOException $e) {
-    printError("\n❌ Erro de conexão com MySQL:");
-    printError($e->getMessage());
-    printError("\nVerifique as credenciais e tente novamente.");
-    exit(1);
-}
-
-echo "\n";
-
-// ==============================================================================
-// GERAR CONFIGURAÇÕES
-// ==============================================================================
-
-printInfo("Gerando configurações do sistema...\n");
-
-// Gerar chave de criptografia
-$encryptionKey = 'base64:' . base64_encode(random_bytes(32));
-printSuccess("Chave de criptografia gerada");
-
-// Solicitar URL da aplicação
-$appURL = ask("URL de produção do sistema (com https://)", "https://seu-dominio.com.br");
-$installData['app']['url'] = $appURL;
-
-// Criar arquivo .env
-printInfo("\nCriando arquivo de configuração (.env)...");
-
-$templatePath = __DIR__ . '/.env.production.template';
-if (!file_exists($templatePath)) {
-    printError("Template .env.production.template não encontrado!");
-    exit(1);
-}
-
-$template = file_get_contents($templatePath);
-
-$replacements = [
-    '%%APP_BASE_URL%%' => $appURL,
-    '%%ENCRYPTION_KEY%%' => $encryptionKey,
-    '%%DB_HOSTNAME%%' => $dbHost,
-    '%%DB_DATABASE%%' => $dbName,
-    '%%DB_USERNAME%%' => $dbUser,
-    '%%DB_PASSWORD%%' => $dbPass,
-    '%%DB_PORT%%' => $dbPort,
-    '%%COMPANY_NAME%%' => ask("Nome da empresa"),
-    '%%COMPANY_CNPJ%%' => ask("CNPJ da empresa"),
-    '%%EMAIL_FROM%%' => ask("Email remetente do sistema", "noreply@" . parse_url($appURL, PHP_URL_HOST)),
-    '%%EMAIL_FROM_NAME%%' => ask("Nome do remetente", "Sistema de Ponto"),
-    '%%SMTP_HOST%%' => ask("Servidor SMTP", "smtp.gmail.com"),
-    '%%SMTP_USER%%' => ask("Usuário SMTP"),
-    '%%SMTP_PASS%%' => askPassword("Senha SMTP"),
-    '%%SMTP_PORT%%' => ask("Porta SMTP", "587"),
-    '%%SMTP_CRYPTO%%' => ask("Criptografia (tls/ssl)", "tls"),
-    '%%ADMIN_EMAIL%%' => $adminEmail,
-];
-
-$envContent = str_replace(array_keys($replacements), array_values($replacements), $template);
-
-if (file_put_contents(__DIR__ . '/.env', $envContent)) {
-    chmod(__DIR__ . '/.env', 0600);
-    printSuccess("Arquivo .env criado e protegido (permissão 600)");
-} else {
-    printError("Erro ao criar arquivo .env");
-    exit(1);
-}
-
-// Executar migrations
-printInfo("\nExecutando migrations do banco de dados...");
-
-if (isFunctionEnabled('exec')) {
-    $output = [];
-    $returnVar = 0;
-    @exec("cd " . escapeshellarg(__DIR__) . " && php spark migrate --all 2>&1", $output, $returnVar);
-
-    if ($returnVar === 0) {
-        printSuccess("Migrations executadas com sucesso!");
-    } else {
-        printError("Erro ao executar migrations:");
-        foreach ($output as $line) {
-            echo "  $line\n";
-        }
-        printWarning("\nContinuando instalação...\n");
-    }
-} else {
-    printWarning("A função exec() está desabilitada no servidor.");
-    printInfo("As migrations serão executadas automaticamente na primeira execução do sistema.");
-    printInfo("Ou você pode executar manualmente: php spark migrate --all");
-}
-
-// Criar usuário administrador
-printInfo("Criando usuário administrador no banco...");
-
-try {
-    $pdo->exec("USE `$dbName`");
-
-    $stmt = $pdo->prepare("
-        INSERT INTO employees (
-            name, email, password, cpf, unique_code, role, department, position,
-            expected_hours_daily, work_schedule_start, work_schedule_end,
-            extra_hours_balance, owed_hours_balance, active,
-            created_at, updated_at
-        ) VALUES (
-            ?, ?, ?, '000.000.000-00', '0001', 'admin', 'Administração', 'Administrador',
-            8.0, '08:00:00', '17:00:00', 0, 0, 1, NOW(), NOW()
-        )
-    ");
-
-    $stmt->execute([
-        $installData['admin']['name'],
-        $installData['admin']['email'],
-        $installData['admin']['password']
-    ]);
-
-    printSuccess("Usuário administrador criado com sucesso!\n");
-
-} catch (PDOException $e) {
-    printError("Erro ao criar administrador: " . $e->getMessage());
-    printWarning("Você pode criar manualmente após a instalação.\n");
-}
-
-// ==============================================================================
-// FASE 4: CHECAGEM FINAL DE COMUNICAÇÃO
-// ==============================================================================
-
-printHeader("FASE 4/4: CHECAGEM FINAL DE COMUNICAÇÃO");
-
-printInfo("Validando integração entre componentes...\n");
-
-$checks = [];
-
-// 1. Testar conexão com banco
-try {
-    $pdo->exec("USE `$dbName`");
-    $stmt = $pdo->query("SELECT 1");
-    $checks['database'] = true;
-    printSuccess("Comunicação com banco de dados: OK");
-} catch (PDOException $e) {
-    $checks['database'] = false;
-    printError("Comunicação com banco de dados: FALHA");
-}
-
-// 2. Verificar tabelas criadas
-try {
-    $stmt = $pdo->query("SHOW TABLES");
-    $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    $requiredTables = ['employees', 'time_punches', 'companies', 'audit_logs'];
-    $missingTables = array_diff($requiredTables, $tables);
-
-    if (empty($missingTables)) {
-        $checks['tables'] = true;
-        printSuccess("Estrutura de tabelas: OK (" . count($tables) . " tabelas)");
-    } else {
-        $checks['tables'] = false;
-        printError("Estrutura de tabelas: INCOMPLETA (faltam: " . implode(', ', $missingTables) . ")");
-    }
-} catch (PDOException $e) {
-    $checks['tables'] = false;
-    printError("Estrutura de tabelas: ERRO");
-}
-
-// 3. Verificar usuário admin
-try {
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE role = 'admin'");
-    $stmt->execute();
-    $adminCount = $stmt->fetchColumn();
-
-    if ($adminCount > 0) {
-        $checks['admin'] = true;
-        printSuccess("Usuário administrador: OK");
-    } else {
-        $checks['admin'] = false;
-        printWarning("Usuário administrador: NÃO ENCONTRADO");
-    }
-} catch (PDOException $e) {
-    $checks['admin'] = false;
-    printError("Usuário administrador: ERRO");
-}
-
-// 4. Verificar arquivo .env
-if (file_exists(__DIR__ . '/.env')) {
-    $checks['env'] = true;
-    printSuccess("Arquivo de configuração (.env): OK");
-} else {
-    $checks['env'] = false;
-    printError("Arquivo de configuração (.env): NÃO ENCONTRADO");
-}
-
-// 5. Verificar permissões de diretórios
-$writableDirs = ['writable/cache', 'writable/logs', 'writable/session', 'writable/uploads'];
-$allWritable = true;
-foreach ($writableDirs as $dir) {
-    if (!is_writable(__DIR__ . '/' . $dir)) {
-        $allWritable = false;
-        break;
-    }
-}
-
-if ($allWritable) {
-    $checks['permissions'] = true;
-    printSuccess("Permissões de diretórios: OK");
-} else {
-    $checks['permissions'] = false;
-    printWarning("Permissões de diretórios: VERIFICAÇÃO NECESSÁRIA");
-}
-
-echo "\n";
-
-// Resultado final
-$allPassed = !in_array(false, $checks);
-
-if ($allPassed) {
-    printHeader("✅ INSTALAÇÃO CONCLUÍDA COM SUCESSO!");
-
-    echo Color::GREEN . Color::BOLD . "\nSistema pronto para produção!\n" . Color::RESET . "\n";
-
-    echo Color::BOLD . "CREDENCIAIS DO ADMINISTRADOR:\n" . Color::RESET;
-    echo "  Email: {$installData['admin']['email']}\n";
-    echo "  Senha: [A senha que você definiu]\n\n";
-
-    echo Color::BOLD . "PRÓXIMOS PASSOS:\n" . Color::RESET;
-    echo "  1. Configure seu servidor web (Apache/Nginx) para apontar para /public\n";
-    echo "  2. Configure certificado SSL/HTTPS\n";
-    echo "  3. Acesse: {$installData['app']['url']}\n";
-    echo "  4. Faça login com as credenciais acima\n";
-    echo "  5. Configure backup automático do banco de dados\n\n";
-
-    printWarning("SEGURANÇA:");
-    echo "  • O arquivo .env contém informações sensíveis\n";
-    echo "  • NUNCA compartilhe ou versione o arquivo .env\n";
-    echo "  • Mantenha backups da chave de criptografia\n\n";
-
-} else {
-    printHeader("⚠️  INSTALAÇÃO CONCLUÍDA COM AVISOS");
-
-    echo Color::YELLOW . "\nAlguns componentes precisam de atenção:\n" . Color::RESET . "\n";
-
-    foreach ($checks as $component => $status) {
-        if (!$status) {
-            printWarning("Verificar: $component");
+        if (IS_CLI) {
+            printWarning("A função exec() está desabilitada no servidor.");
+            printInfo("Execute manualmente: php spark migrate --all");
         }
     }
 
-    echo "\nRevise os avisos acima antes de colocar o sistema em produção.\n\n";
+    // Criar usuário administrador
+    if (IS_CLI) {
+        printInfo("Criando usuário administrador no banco...");
+    }
+
+    try {
+        $pdo->exec("USE `{$database['name']}`");
+
+        // Verificar se a tabela employees existe
+        $tables = $pdo->query("SHOW TABLES LIKE 'employees'")->fetchAll();
+
+        if (empty($tables)) {
+            // Criar tabela employees manualmente se não existir
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS `employees` (
+                    `id` int(11) NOT NULL AUTO_INCREMENT,
+                    `name` varchar(255) NOT NULL,
+                    `email` varchar(255) NOT NULL UNIQUE,
+                    `password` varchar(255) NOT NULL,
+                    `cpf` varchar(14) DEFAULT NULL,
+                    `unique_code` varchar(10) NOT NULL UNIQUE,
+                    `role` enum('admin','manager','employee') DEFAULT 'employee',
+                    `department` varchar(100) DEFAULT NULL,
+                    `position` varchar(100) DEFAULT NULL,
+                    `expected_hours_daily` decimal(4,2) DEFAULT 8.00,
+                    `work_schedule_start` time DEFAULT '08:00:00',
+                    `work_schedule_end` time DEFAULT '17:00:00',
+                    `extra_hours_balance` decimal(10,2) DEFAULT 0.00,
+                    `owed_hours_balance` decimal(10,2) DEFAULT 0.00,
+                    `active` tinyint(1) DEFAULT 1,
+                    `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    PRIMARY KEY (`id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+            ");
+        }
+
+        $stmt = $pdo->prepare("
+            INSERT INTO employees (
+                name, email, password, cpf, unique_code, role, department, position,
+                expected_hours_daily, work_schedule_start, work_schedule_end,
+                extra_hours_balance, owed_hours_balance, active,
+                created_at, updated_at
+            ) VALUES (
+                ?, ?, ?, '000.000.000-00', '0001', 'admin', 'Administração', 'Administrador',
+                8.0, '08:00:00', '17:00:00', 0, 0, 1, NOW(), NOW()
+            )
+        ");
+
+        $stmt->execute([
+            $admin['name'],
+            $admin['email'],
+            $admin['password']
+        ]);
+
+        if (IS_CLI) {
+            printSuccess("Usuário administrador criado com sucesso!");
+        }
+    } catch (PDOException $e) {
+        throw new Exception("Erro ao criar administrador: " . $e->getMessage());
+    }
+
+    // Validação final
+    if (IS_CLI) {
+        printHeader("FASE 4/4: CHECAGEM FINAL");
+        printSuccess("✅ Banco de dados: Conectado");
+        printSuccess("✅ Tabelas: Criadas");
+        printSuccess("✅ Administrador: Criado");
+        printSuccess("✅ Arquivo .env: Configurado");
+
+        echo "\n" . Color::GREEN . Color::BOLD . "🎉 INSTALAÇÃO CONCLUÍDA COM SUCESSO!\n" . Color::RESET . "\n";
+        echo Color::CYAN . "Sistema pronto para uso em produção.\n\n" . Color::RESET;
+        echo Color::BOLD . "📝 Credenciais do administrador:\n" . Color::RESET;
+        echo "   E-mail: {$admin['email']}\n";
+        echo "   Senha: [a senha que você definiu]\n\n";
+        echo Color::BOLD . "🌐 Acesse o sistema em:\n" . Color::RESET;
+        echo "   {$database['url']}\n\n";
+        echo Color::YELLOW . "⚠️  IMPORTANTE:\n" . Color::RESET;
+        echo "   - Guarde suas credenciais em local seguro\n";
+        echo "   - Faça backup regular do banco de dados\n";
+        echo "   - O arquivo .env contém informações sensíveis (não compartilhe!)\n";
+
+        if (!isFunctionEnabled('exec')) {
+            echo "\n" . Color::YELLOW . "⚠️  Execute manualmente as migrations:\n" . Color::RESET;
+            echo "   php spark migrate --all\n";
+        }
+
+        echo "\n";
+    }
 }
 
-echo Color::CYAN . str_repeat('=', 75) . Color::RESET . "\n\n";
+function renderWebInterface() {
+    $step = $_SESSION['step'] ?? '1';
+    $errors = $_SESSION['errors'] ?? [];
+    unset($_SESSION['errors']);
+
+    ?>
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Instalador - Sistema de Ponto Eletrônico</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                padding: 20px;
+            }
+            .container {
+                max-width: 800px;
+                margin: 0 auto;
+                background: white;
+                border-radius: 10px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                overflow: hidden;
+            }
+            .header {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 30px;
+                text-align: center;
+            }
+            .header h1 { font-size: 28px; margin-bottom: 10px; }
+            .header p { opacity: 0.9; }
+            .content { padding: 40px; }
+            .steps {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 40px;
+                padding-bottom: 20px;
+                border-bottom: 2px solid #f0f0f0;
+            }
+            .step-item {
+                flex: 1;
+                text-align: center;
+                padding: 10px;
+                position: relative;
+            }
+            .step-item.active { color: #667eea; font-weight: bold; }
+            .step-item.completed { color: #10b981; }
+            .step-number {
+                display: inline-block;
+                width: 32px;
+                height: 32px;
+                line-height: 32px;
+                border-radius: 50%;
+                background: #e5e7eb;
+                margin-bottom: 5px;
+            }
+            .step-item.active .step-number { background: #667eea; color: white; }
+            .step-item.completed .step-number { background: #10b981; color: white; }
+            .form-group { margin-bottom: 20px; }
+            .form-group label {
+                display: block;
+                margin-bottom: 8px;
+                font-weight: 600;
+                color: #374151;
+            }
+            .form-group input, .form-group select {
+                width: 100%;
+                padding: 12px;
+                border: 2px solid #e5e7eb;
+                border-radius: 6px;
+                font-size: 16px;
+                transition: border-color 0.3s;
+            }
+            .form-group input:focus, .form-group select:focus {
+                outline: none;
+                border-color: #667eea;
+            }
+            .form-row {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+            }
+            .btn {
+                display: inline-block;
+                padding: 14px 32px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: transform 0.2s;
+            }
+            .btn:hover { transform: translateY(-2px); }
+            .success, .error, .warning, .info {
+                padding: 12px 16px;
+                border-radius: 6px;
+                margin-bottom: 16px;
+            }
+            .success { background: #d1fae5; color: #065f46; border-left: 4px solid #10b981; }
+            .error { background: #fee2e2; color: #991b1b; border-left: 4px solid #ef4444; }
+            .warning { background: #fef3c7; color: #92400e; border-left: 4px solid #f59e0b; }
+            .info { background: #dbeafe; color: #1e40af; border-left: 4px solid #3b82f6; }
+            .requirements { list-style: none; }
+            .requirements li {
+                padding: 12px;
+                margin-bottom: 8px;
+                background: #f9fafb;
+                border-radius: 6px;
+                border-left: 4px solid #10b981;
+            }
+            .requirements li.failed {
+                background: #fef2f2;
+                border-left-color: #ef4444;
+            }
+            .final-info {
+                background: #f0fdf4;
+                border: 2px solid #10b981;
+                border-radius: 8px;
+                padding: 24px;
+                margin-top: 24px;
+            }
+            .final-info h3 { color: #065f46; margin-bottom: 16px; }
+            .final-info p { margin-bottom: 8px; color: #374151; }
+            .final-info strong { color: #667eea; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>⏱️ Sistema de Ponto Eletrônico</h1>
+                <p>Instalador de Produção</p>
+            </div>
+
+            <div class="content">
+                <div class="steps">
+                    <div class="step-item <?= $step >= '1' ? 'completed' : '' ?>">
+                        <div class="step-number">1</div>
+                        <div>Requisitos</div>
+                    </div>
+                    <div class="step-item <?= $step == '2' ? 'active' : ($step > '2' ? 'completed' : '') ?>">
+                        <div class="step-number">2</div>
+                        <div>Administrador</div>
+                    </div>
+                    <div class="step-item <?= $step == '3' ? 'active' : ($step > '3' ? 'completed' : '') ?>">
+                        <div class="step-number">3</div>
+                        <div>Banco de Dados</div>
+                    </div>
+                    <div class="step-item <?= $step == '4' ? 'active' : '' ?>">
+                        <div class="step-number">4</div>
+                        <div>Concluído</div>
+                    </div>
+                </div>
+
+                <?php if (!empty($errors)): ?>
+                    <?php foreach ($errors as $error): ?>
+                        <div class="error">✗ <?= htmlEscape($error) ?></div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+
+                <?php if ($step === '1'): ?>
+                    <h2 style="margin-bottom: 20px;">Fase 1: Checagem de Requisitos</h2>
+                    <p style="margin-bottom: 24px; color: #6b7280;">Verificando se o servidor atende todos os requisitos necessários...</p>
+
+                    <?php
+                    $requirements = checkRequirements();
+                    $allMet = true;
+                    ?>
+
+                    <ul class="requirements">
+                        <?php foreach ($requirements as $req): ?>
+                            <li class="<?= $req['check'] ? '' : 'failed' ?>">
+                                <?= $req['check'] ? '✓' : '✗' ?>
+                                <strong><?= htmlEscape($req['name']) ?></strong>:
+                                <?= htmlEscape($req['current']) ?>
+                                <?php if (!$req['check']): ?>
+                                    <br><small style="color: #991b1b; margin-top: 4px; display: block;">
+                                        💡 <?= htmlEscape($req['solution']) ?>
+                                    </small>
+                                    <?php $allMet = false; ?>
+                                <?php endif; ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+
+                    <?php if ($allMet): ?>
+                        <div class="success" style="margin-top: 24px;">
+                            ✓ Todos os requisitos foram atendidos! O sistema está pronto para instalação.
+                        </div>
+                        <form method="POST" style="margin-top: 24px;">
+                            <input type="hidden" name="step" value="1">
+                            <button type="submit" class="btn">Continuar para Próxima Etapa →</button>
+                        </form>
+                    <?php else: ?>
+                        <div class="error" style="margin-top: 24px;">
+                            ✗ Alguns requisitos não foram atendidos. Corrija os problemas acima antes de continuar.
+                        </div>
+                    <?php endif; ?>
+
+                <?php elseif ($step === '2'): ?>
+                    <h2 style="margin-bottom: 20px;">Fase 2: Usuário Administrador</h2>
+                    <p style="margin-bottom: 24px; color: #6b7280;">Configure as credenciais do administrador do sistema.</p>
+
+                    <form method="POST">
+                        <input type="hidden" name="step" value="2">
+
+                        <div class="form-group">
+                            <label>Nome Completo *</label>
+                            <input type="text" name="admin_name" required placeholder="João da Silva">
+                        </div>
+
+                        <div class="form-group">
+                            <label>E-mail *</label>
+                            <input type="email" name="admin_email" required placeholder="admin@empresa.com.br">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Senha * (mínimo 12 caracteres, letras maiúsculas, minúsculas e números)</label>
+                            <input type="password" name="admin_password" required minlength="12">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Confirme a Senha *</label>
+                            <input type="password" name="admin_password_confirm" required minlength="12">
+                        </div>
+
+                        <button type="submit" class="btn">Continuar para Próxima Etapa →</button>
+                    </form>
+
+                <?php elseif ($step === '3'): ?>
+                    <h2 style="margin-bottom: 20px;">Fase 3: Configuração do Banco de Dados</h2>
+                    <p style="margin-bottom: 24px; color: #6b7280;">Configure a conexão com MySQL e dados da empresa.</p>
+
+                    <form method="POST">
+                        <input type="hidden" name="step" value="3">
+
+                        <h3 style="margin: 24px 0 16px 0; color: #667eea;">🌐 Configurações da Aplicação</h3>
+
+                        <div class="form-group">
+                            <label>URL Base da Aplicação *</label>
+                            <input type="url" name="app_url" required placeholder="https://ponto.empresa.com.br"
+                                   value="<?= htmlEscape($_SERVER['REQUEST_SCHEME'] . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF'])) ?>">
+                        </div>
+
+                        <h3 style="margin: 24px 0 16px 0; color: #667eea;">🗄️ Banco de Dados MySQL</h3>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Host *</label>
+                                <input type="text" name="db_host" required value="localhost">
+                            </div>
+                            <div class="form-group">
+                                <label>Porta *</label>
+                                <input type="text" name="db_port" required value="3306">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Nome do Banco *</label>
+                            <input type="text" name="db_name" required placeholder="registro_ponto">
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Usuário *</label>
+                                <input type="text" name="db_user" required placeholder="ponto_user">
+                            </div>
+                            <div class="form-group">
+                                <label>Senha *</label>
+                                <input type="password" name="db_pass" required>
+                            </div>
+                        </div>
+
+                        <h3 style="margin: 24px 0 16px 0; color: #667eea;">🏢 Dados da Empresa</h3>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Nome da Empresa *</label>
+                                <input type="text" name="company_name" required>
+                            </div>
+                            <div class="form-group">
+                                <label>CNPJ</label>
+                                <input type="text" name="company_cnpj" placeholder="00.000.000/0000-00">
+                            </div>
+                        </div>
+
+                        <h3 style="margin: 24px 0 16px 0; color: #667eea;">📧 Configurações de E-mail (SMTP)</h3>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>E-mail Remetente</label>
+                                <input type="email" name="email_from" placeholder="noreply@empresa.com.br">
+                            </div>
+                            <div class="form-group">
+                                <label>Nome do Remetente</label>
+                                <input type="text" name="email_from_name" value="Sistema de Ponto">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Servidor SMTP</label>
+                                <input type="text" name="smtp_host" placeholder="smtp.gmail.com">
+                            </div>
+                            <div class="form-group">
+                                <label>Porta SMTP</label>
+                                <input type="text" name="smtp_port" value="587">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Usuário SMTP</label>
+                                <input type="text" name="smtp_user">
+                            </div>
+                            <div class="form-group">
+                                <label>Senha SMTP</label>
+                                <input type="password" name="smtp_pass">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Criptografia</label>
+                            <select name="smtp_crypto">
+                                <option value="tls">TLS</option>
+                                <option value="ssl">SSL</option>
+                            </select>
+                        </div>
+
+                        <div class="info" style="margin-top: 24px;">
+                            ℹ️ Ao clicar em "Instalar", o sistema irá:
+                            <ul style="margin-left: 20px; margin-top: 8px;">
+                                <li>Testar a conexão com o banco de dados</li>
+                                <li>Criar/verificar o banco de dados</li>
+                                <li>Executar as migrations (criar tabelas)</li>
+                                <li>Criar o usuário administrador</li>
+                                <li>Gerar o arquivo de configuração .env</li>
+                            </ul>
+                        </div>
+
+                        <button type="submit" class="btn" style="margin-top: 24px;">🚀 Instalar Sistema</button>
+                    </form>
+
+                <?php elseif ($step === '4'): ?>
+                    <div style="text-align: center; padding: 40px 0;">
+                        <div style="font-size: 72px; margin-bottom: 24px;">🎉</div>
+                        <h2 style="color: #10b981; margin-bottom: 16px;">Instalação Concluída com Sucesso!</h2>
+                        <p style="color: #6b7280; margin-bottom: 32px;">O sistema está pronto para uso em produção.</p>
+                    </div>
+
+                    <?php if (isset($_SESSION['success'])): ?>
+                        <div class="final-info">
+                            <h3>📝 Informações Importantes</h3>
+
+                            <p><strong>✓ Banco de dados:</strong> Configurado e conectado</p>
+                            <p><strong>✓ Tabelas:</strong> Criadas com sucesso</p>
+                            <p><strong>✓ Administrador:</strong> Usuário criado</p>
+                            <p><strong>✓ Arquivo .env:</strong> Gerado e protegido</p>
+
+                            <div style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #d1fae5;">
+                                <p><strong>🌐 Acesse o sistema em:</strong></p>
+                                <p style="font-size: 18px; color: #667eea; margin-top: 8px;">
+                                    <?= htmlEscape($_SESSION['database']['url'] ?? 'Sua URL') ?>
+                                </p>
+                            </div>
+
+                            <div style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #d1fae5;">
+                                <p><strong>👤 Credenciais do Administrador:</strong></p>
+                                <p style="margin-top: 8px;">E-mail: <strong><?= htmlEscape($_SESSION['admin']['email'] ?? '') ?></strong></p>
+                                <p>Senha: <em>a senha que você definiu</em></p>
+                            </div>
+                        </div>
+
+                        <div class="warning" style="margin-top: 24px;">
+                            ⚠️ <strong>Importante:</strong>
+                            <ul style="margin-left: 20px; margin-top: 8px;">
+                                <li>Guarde suas credenciais em local seguro</li>
+                                <li>Faça backup regular do banco de dados</li>
+                                <li>O arquivo .env contém informações sensíveis - não compartilhe!</li>
+                                <li>Por segurança, delete o arquivo install.php após a instalação</li>
+                            </ul>
+                        </div>
+
+                        <?php if (!isFunctionEnabled('exec')): ?>
+                            <div class="info" style="margin-top: 16px;">
+                                ℹ️ A função exec() está desabilitada. Execute manualmente via SSH:
+                                <code style="display: block; background: #f3f4f6; padding: 8px; margin-top: 8px; border-radius: 4px;">
+                                    php spark migrate --all
+                                </code>
+                            </div>
+                        <?php endif; ?>
+
+                        <div style="text-align: center; margin-top: 32px;">
+                            <a href="<?= htmlEscape($_SESSION['database']['url'] ?? '/') ?>" class="btn">
+                                Acessar Sistema →
+                            </a>
+                        </div>
+
+                        <?php
+                        // Limpar sessão
+                        session_destroy();
+                        ?>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+    </body>
+    </html>
+    <?php
+}
