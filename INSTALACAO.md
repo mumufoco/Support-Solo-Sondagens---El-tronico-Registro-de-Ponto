@@ -128,6 +128,26 @@ rm vendor/composer/platform_check.php
 composer install --no-dev --optimize-autoloader --ignore-platform-reqs
 ```
 
+**⚠️ Erro "Failed opening required phpunit"?**
+
+Se encontrar erro relacionado ao PHPUnit ou outras dependências dev:
+
+```bash
+# Opção 1: Via navegador - Execute o script de correção
+# Acesse: https://seusite.com/ponto/fix-autoload.php
+
+# Opção 2: Via SSH - Regenerar autoloader
+cd /home/supportson/public_html/ponto
+composer dump-autoload --no-dev --optimize
+
+# Opção 3: Via SSH - Reinstalar vendor limpo
+rm -rf vendor/
+composer install --no-dev --optimize-autoloader
+```
+
+Este erro ocorre quando o autoloader foi gerado com dependências dev mas depois
+o vendor foi instalado sem elas, causando referências quebradas.
+
 ### 4. Aplicar Configurações PHP (Hospedagem Compartilhada)
 
 Se estiver em hospedagem compartilhada, o arquivo `.user.ini` já está incluído e será carregado automaticamente pelo PHP para corrigir configurações comuns.
