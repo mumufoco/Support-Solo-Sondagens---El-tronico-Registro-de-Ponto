@@ -637,6 +637,12 @@ function performInstallation($admin, $database, $app) {
                         case 'cpf':
                             $pdo->exec("ALTER TABLE `employees` ADD COLUMN `cpf` varchar(14) DEFAULT NULL UNIQUE COMMENT 'CPF formatado' AFTER `password`");
                             break;
+                        case 'department':
+                            $pdo->exec("ALTER TABLE `employees` ADD COLUMN `department` varchar(100) DEFAULT NULL COMMENT 'Departamento' AFTER `role`");
+                            break;
+                        case 'position':
+                            $pdo->exec("ALTER TABLE `employees` ADD COLUMN `position` varchar(100) DEFAULT NULL COMMENT 'Cargo' AFTER `department`");
+                            break;
                         case 'expected_hours_daily':
                             $pdo->exec("ALTER TABLE `employees` ADD COLUMN `expected_hours_daily` decimal(4,2) DEFAULT 8.00 COMMENT 'Jornada diária em horas' AFTER `position`");
                             break;
@@ -651,6 +657,15 @@ function performInstallation($admin, $database, $app) {
                             break;
                         case 'owed_hours_balance':
                             $pdo->exec("ALTER TABLE `employees` ADD COLUMN `owed_hours_balance` decimal(10,2) DEFAULT 0.00 COMMENT 'Saldo horas devidas' AFTER `extra_hours_balance`");
+                            break;
+                        case 'active':
+                            $pdo->exec("ALTER TABLE `employees` ADD COLUMN `active` tinyint(1) DEFAULT 1 COMMENT 'Funcionário ativo' AFTER `owed_hours_balance`");
+                            break;
+                        case 'created_at':
+                            $pdo->exec("ALTER TABLE `employees` ADD COLUMN `created_at` datetime DEFAULT CURRENT_TIMESTAMP AFTER `active`");
+                            break;
+                        case 'updated_at':
+                            $pdo->exec("ALTER TABLE `employees` ADD COLUMN `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER `created_at`");
                             break;
                         case 'deleted_at':
                             $pdo->exec("ALTER TABLE `employees` ADD COLUMN `deleted_at` datetime DEFAULT NULL AFTER `updated_at`");
