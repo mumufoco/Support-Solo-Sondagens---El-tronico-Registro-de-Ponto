@@ -33,6 +33,14 @@ class App extends BaseConfig
         if (empty($this->baseURL)) {
             $this->baseURL = $this->detectBaseURL();
         }
+
+        // Force HTTPS in production environment
+        $this->forceGlobalSecureRequests = env('app.forceGlobalSecureRequests', ENVIRONMENT === 'production');
+
+        // Secure cookies in production
+        if (ENVIRONMENT === 'production') {
+            $this->cookieSecure = true;
+        }
     }
 
     /**
@@ -83,9 +91,10 @@ class App extends BaseConfig
 
     /**
      * Force Global Secure Requests
-     * Set to false for development environment
+     * PRODUCTION: Should always be true (forces HTTPS)
+     * DEVELOPMENT: Can be false for local testing
      */
-    public bool $forceGlobalSecureRequests = false;
+    public bool $forceGlobalSecureRequests = false; // Will be set in constructor
 
     /**
      * Session Variables
