@@ -15,6 +15,14 @@
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
+// Fix common PHP configuration issues
+if (ini_get('session.gc_divisor') == 0) {
+    ini_set('session.gc_divisor', '100');
+}
+if (ini_get('session.gc_probability') == 0) {
+    ini_set('session.gc_probability', '1');
+}
+
 // Detectar modo de execução
 define('IS_CLI', PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg');
 define('IS_WEB', !IS_CLI);

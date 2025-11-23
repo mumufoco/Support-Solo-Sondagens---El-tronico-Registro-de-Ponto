@@ -6,6 +6,14 @@
  * onde houve problemas de compatibilidade do Composer.
  */
 
+// Fix common PHP configuration issues
+if (ini_get('session.gc_divisor') == 0) {
+    ini_set('session.gc_divisor', '100');
+}
+if (ini_get('session.gc_probability') == 0) {
+    ini_set('session.gc_probability', '1');
+}
+
 echo "=================================================\n";
 echo "  PRÉ-INSTALAÇÃO - Correção de Compatibilidade\n";
 echo "=================================================\n\n";
@@ -68,6 +76,27 @@ if (!is_writable($writableDir)) {
     echo "  → Execute: chmod -R 755 writable/\n";
 } else {
     echo "  ✓ Diretório writable/ é gravável\n";
+}
+
+echo "\n";
+
+// 5. Verificar configurações PHP críticas
+echo "► Verificando configurações do PHP...\n";
+
+$warnings = [];
+
+if (ini_get('session.gc_divisor') == 0) {
+    $warnings[] = "session.gc_divisor está definido como 0";
+    if (ini_set('session.gc_divisor', '100') !== false) {
+        echo "  ⚠ session.gc_divisor corrigido para 100 (via ini_set)\n";
+    } else {
+        echo "  ✗ Não foi possível corrigir session.gc_divisor via ini_set\n";
+        echo "  → O arquivo .user.ini corrigirá isso automaticamente\n";
+    }
+}
+
+if (empty($warnings)) {
+    echo "  ✓ Configurações PHP estão corretas\n";
 }
 
 echo "\n";

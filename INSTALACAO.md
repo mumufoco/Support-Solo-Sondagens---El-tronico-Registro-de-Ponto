@@ -128,7 +128,19 @@ rm vendor/composer/platform_check.php
 composer install --no-dev --optimize-autoloader --ignore-platform-reqs
 ```
 
-### 4. Configurar Permissões de Diretórios
+### 4. Aplicar Configurações PHP (Hospedagem Compartilhada)
+
+Se estiver em hospedagem compartilhada, o arquivo `.user.ini` já está incluído e será carregado automaticamente pelo PHP para corrigir configurações comuns.
+
+**Configurações aplicadas automaticamente:**
+- ✅ `session.gc_divisor` corrigido (evita warning de sessão)
+- ✅ Limites de memória e upload aumentados
+- ✅ Timezone configurado (America/Sao_Paulo)
+- ✅ Segurança de sessão habilitada
+
+**⚠️ Nota**: Se o arquivo `.user.ini` não for reconhecido pelo servidor, as correções já estão implementadas nos scripts PHP via `ini_set()`.
+
+### 5. Configurar Permissões de Diretórios
 
 ```bash
 # Definir proprietário correto (ajuste www-data conforme seu servidor)
