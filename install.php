@@ -57,11 +57,26 @@ function ask($question, $default = '') {
     return $answer ?: $default;
 }
 
+function isFunctionEnabled($func) {
+    $disabled = explode(',', ini_get('disable_functions'));
+    $disabled = array_map('trim', $disabled);
+    return !in_array($func, $disabled) && function_exists($func);
+}
+
 function askPassword($question) {
     echo Color::BOLD . "$question: " . Color::RESET;
-    system('stty -echo 2>/dev/null');
-    $password = trim(fgets(STDIN));
-    system('stty echo 2>/dev/null');
+
+    // Tentar desabilitar echo se a função estiver disponível
+    if (isFunctionEnabled('system') && PHP_OS_FAMILY !== 'Windows') {
+        @system('stty -echo 2>/dev/null');
+        $password = trim(fgets(STDIN));
+        @system('stty echo 2>/dev/null');
+    } else {
+        // Fallback: senha visível (com aviso)
+        echo Color::YELLOW . "(Aviso: a senha será visível ao digitar) " . Color::RESET;
+        $password = trim(fgets(STDIN));
+    }
+
     echo "\n";
     return $password;
 }
@@ -100,7 +115,11 @@ $installData = [
 // CABEÇALHO DO INSTALADOR
 // ==============================================================================
 
-system('clear');
+// Limpar tela se possível (não crítico)
+if (isFunctionEnabled('system') && PHP_SAPI === 'cli') {
+    @system('clear');
+}
+
 printHeader("SISTEMA DE PONTO ELETRÔNICO - INSTALADOR DE PRODUÇÃO");
 
 echo Color::BOLD . "Este instalador irá configurar o sistema para produção em 4 etapas:\n\n" . Color::RESET;
@@ -425,18 +444,24 @@ if (file_put_contents(__DIR__ . '/.env', $envContent)) {
 // Executar migrations
 printInfo("\nExecutando migrations do banco de dados...");
 
-$output = [];
-$returnVar = 0;
-exec("cd " . __DIR__ . " && php spark migrate --all 2>&1", $output, $returnVar);
+if (isFunctionEnabled('exec')) {
+    $output = [];
+    $returnVar = 0;
+    @exec("cd " . escapeshellarg(__DIR__) . " && php spark migrate --all 2>&1", $output, $returnVar);
 
-if ($returnVar === 0) {
-    printSuccess("Migrations executadas com sucesso!");
-} else {
-    printError("Erro ao executar migrations:");
-    foreach ($output as $line) {
-        echo "  $line\n";
+    if ($returnVar === 0) {
+        printSuccess("Migrations executadas com sucesso!");
+    } else {
+        printError("Erro ao executar migrations:");
+        foreach ($output as $line) {
+            echo "  $line\n";
+        }
+        printWarning("\nContinuando instalação...\n");
     }
-    printWarning("\nContinuando instalação...\n");
+} else {
+    printWarning("A função exec() está desabilitada no servidor.");
+    printInfo("As migrations serão executadas automaticamente na primeira execução do sistema.");
+    printInfo("Ou você pode executar manualmente: php spark migrate --all");
 }
 
 // Criar usuário administrador
