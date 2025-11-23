@@ -579,50 +579,134 @@ function performInstallation($admin, $database, $app) {
 
         if (empty($tables)) {
             // Criar tabela employees manualmente se não existir
+            if (IS_CLI) {
+                printInfo("Criando tabela employees...");
+            }
             $pdo->exec("
                 CREATE TABLE IF NOT EXISTS `employees` (
                     `id` int(11) NOT NULL AUTO_INCREMENT,
-                    `name` varchar(255) NOT NULL,
-                    `email` varchar(255) NOT NULL UNIQUE,
-                    `password` varchar(255) NOT NULL,
-                    `cpf` varchar(14) DEFAULT NULL,
-                    `unique_code` varchar(10) NOT NULL UNIQUE,
-                    `role` enum('admin','manager','employee') DEFAULT 'employee',
-                    `department` varchar(100) DEFAULT NULL,
-                    `position` varchar(100) DEFAULT NULL,
-                    `expected_hours_daily` decimal(4,2) DEFAULT 8.00,
-                    `work_schedule_start` time DEFAULT '08:00:00',
-                    `work_schedule_end` time DEFAULT '17:00:00',
-                    `extra_hours_balance` decimal(10,2) DEFAULT 0.00,
-                    `owed_hours_balance` decimal(10,2) DEFAULT 0.00,
-                    `active` tinyint(1) DEFAULT 1,
+                    `name` varchar(255) NOT NULL COMMENT 'Nome completo do funcionário',
+                    `email` varchar(255) NOT NULL UNIQUE COMMENT 'E-mail único para login',
+                    `password` varchar(255) NOT NULL COMMENT 'Senha hash',
+                    `cpf` varchar(14) DEFAULT NULL UNIQUE COMMENT 'CPF formatado',
+                    `unique_code` varchar(8) NOT NULL UNIQUE COMMENT 'Código único para registro de ponto',
+                    `role` varchar(20) DEFAULT 'funcionario' COMMENT 'Perfil: admin, gestor, funcionario',
+                    `department` varchar(100) DEFAULT NULL COMMENT 'Departamento',
+                    `position` varchar(100) DEFAULT NULL COMMENT 'Cargo',
+                    `expected_hours_daily` decimal(4,2) DEFAULT 8.00 COMMENT 'Jornada diária em horas',
+                    `work_schedule_start` time DEFAULT NULL COMMENT 'Horário início expediente',
+                    `work_schedule_end` time DEFAULT NULL COMMENT 'Horário fim expediente',
+                    `extra_hours_balance` decimal(10,2) DEFAULT 0.00 COMMENT 'Saldo horas extras',
+                    `owed_hours_balance` decimal(10,2) DEFAULT 0.00 COMMENT 'Saldo horas devidas',
+                    `active` tinyint(1) DEFAULT 1 COMMENT 'Funcionário ativo',
                     `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
                     `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    PRIMARY KEY (`id`)
+                    `deleted_at` datetime DEFAULT NULL,
+                    PRIMARY KEY (`id`),
+                    KEY `idx_role_active` (`role`, `active`),
+                    KEY `idx_department` (`department`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
             ");
+            if (IS_CLI) {
+                printSuccess("Tabela employees criada!");
+            }
+        } else {
+            // Tabela existe, verificar se tem as colunas necessárias
+            $columns = $pdo->query("SHOW COLUMNS FROM `employees`")->fetchAll(PDO::FETCH_COLUMN);
+
+            $requiredColumns = [
+                'id', 'name', 'email', 'password', 'cpf', 'unique_code', 'role',
+                'department', 'position', 'expected_hours_daily', 'work_schedule_start',
+                'work_schedule_end', 'extra_hours_balance', 'owed_hours_balance',
+                'active', 'created_at', 'updated_at'
+            ];
+
+            $missingColumns = array_diff($requiredColumns, $columns);
+
+            if (!empty($missingColumns)) {
+                // Adicionar colunas faltantes
+                if (IS_CLI) {
+                    printWarning("Tabela employees existe mas está incompleta. Adicionando colunas...");
+                }
+
+                foreach ($missingColumns as $column) {
+                    switch ($column) {
+                        case 'unique_code':
+                            $pdo->exec("ALTER TABLE `employees` ADD COLUMN `unique_code` varchar(8) NOT NULL UNIQUE COMMENT 'Código único para registro de ponto' AFTER `cpf`");
+                            break;
+                        case 'cpf':
+                            $pdo->exec("ALTER TABLE `employees` ADD COLUMN `cpf` varchar(14) DEFAULT NULL UNIQUE COMMENT 'CPF formatado' AFTER `password`");
+                            break;
+                        case 'expected_hours_daily':
+                            $pdo->exec("ALTER TABLE `employees` ADD COLUMN `expected_hours_daily` decimal(4,2) DEFAULT 8.00 COMMENT 'Jornada diária em horas' AFTER `position`");
+                            break;
+                        case 'work_schedule_start':
+                            $pdo->exec("ALTER TABLE `employees` ADD COLUMN `work_schedule_start` time DEFAULT NULL COMMENT 'Horário início expediente' AFTER `expected_hours_daily`");
+                            break;
+                        case 'work_schedule_end':
+                            $pdo->exec("ALTER TABLE `employees` ADD COLUMN `work_schedule_end` time DEFAULT NULL COMMENT 'Horário fim expediente' AFTER `work_schedule_start`");
+                            break;
+                        case 'extra_hours_balance':
+                            $pdo->exec("ALTER TABLE `employees` ADD COLUMN `extra_hours_balance` decimal(10,2) DEFAULT 0.00 COMMENT 'Saldo horas extras' AFTER `work_schedule_end`");
+                            break;
+                        case 'owed_hours_balance':
+                            $pdo->exec("ALTER TABLE `employees` ADD COLUMN `owed_hours_balance` decimal(10,2) DEFAULT 0.00 COMMENT 'Saldo horas devidas' AFTER `extra_hours_balance`");
+                            break;
+                        case 'deleted_at':
+                            $pdo->exec("ALTER TABLE `employees` ADD COLUMN `deleted_at` datetime DEFAULT NULL AFTER `updated_at`");
+                            break;
+                    }
+                }
+
+                if (IS_CLI) {
+                    printSuccess("Colunas adicionadas com sucesso!");
+                }
+            }
         }
 
-        $stmt = $pdo->prepare("
-            INSERT INTO employees (
-                name, email, password, cpf, unique_code, role, department, position,
-                expected_hours_daily, work_schedule_start, work_schedule_end,
-                extra_hours_balance, owed_hours_balance, active,
-                created_at, updated_at
-            ) VALUES (
-                ?, ?, ?, '000.000.000-00', '0001', 'admin', 'Administração', 'Administrador',
-                8.0, '08:00:00', '17:00:00', 0, 0, 1, NOW(), NOW()
-            )
-        ");
+        // Verificar se já existe um admin
+        $stmt = $pdo->query("SELECT COUNT(*) FROM employees WHERE role = 'admin' OR email = " . $pdo->quote($admin['email']));
+        $adminExists = $stmt->fetchColumn() > 0;
 
-        $stmt->execute([
-            $admin['name'],
-            $admin['email'],
-            $admin['password']
-        ]);
+        if ($adminExists) {
+            if (IS_CLI) {
+                printWarning("Já existe um administrador cadastrado. Atualizando...");
+            }
+
+            // Atualizar admin existente
+            $stmt = $pdo->prepare("
+                UPDATE employees
+                SET name = ?, password = ?, role = 'admin', active = 1, updated_at = NOW()
+                WHERE email = ?
+            ");
+            $stmt->execute([
+                $admin['name'],
+                $admin['password'],
+                $admin['email']
+            ]);
+        } else {
+            // Inserir novo admin
+            $stmt = $pdo->prepare("
+                INSERT INTO employees (
+                    name, email, password, cpf, unique_code, role, department, position,
+                    expected_hours_daily, work_schedule_start, work_schedule_end,
+                    extra_hours_balance, owed_hours_balance, active,
+                    created_at, updated_at
+                ) VALUES (
+                    ?, ?, ?, '000.000.000-00', '0001', 'admin', 'Administração', 'Administrador',
+                    8.0, '08:00:00', '17:00:00', 0, 0, 1, NOW(), NOW()
+                )
+            ");
+
+            $stmt->execute([
+                $admin['name'],
+                $admin['email'],
+                $admin['password']
+            ]);
+        }
 
         if (IS_CLI) {
-            printSuccess("Usuário administrador criado com sucesso!");
+            printSuccess("Usuário administrador configurado com sucesso!");
         }
     } catch (PDOException $e) {
         throw new Exception("Erro ao criar administrador: " . $e->getMessage());
