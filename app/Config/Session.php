@@ -5,6 +5,7 @@ namespace Config;
 use CodeIgniter\Config\BaseConfig;
 use CodeIgniter\Session\Handlers\BaseHandler;
 use CodeIgniter\Session\Handlers\FileHandler;
+use App\Session\Handlers\SafeFileHandler;
 
 class Session extends BaseConfig
 {
@@ -18,10 +19,14 @@ class Session extends BaseConfig
      * - `CodeIgniter\Session\Handlers\DatabaseHandler`
      * - `CodeIgniter\Session\Handlers\MemcachedHandler`
      * - `CodeIgniter\Session\Handlers\RedisHandler`
+     * - `App\Session\Handlers\SafeFileHandler` (for shared hosting)
+     *
+     * SafeFileHandler is recommended for shared hosting environments where
+     * ini_set() is disabled for security reasons.
      *
      * @var class-string<BaseHandler>
      */
-    public string $driver = FileHandler::class;
+    public string $driver = SafeFileHandler::class;
 
     /**
      * --------------------------------------------------------------------------

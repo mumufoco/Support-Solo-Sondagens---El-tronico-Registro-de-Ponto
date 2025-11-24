@@ -15,7 +15,11 @@
  | painful debugging.
  */
 error_reporting(E_ALL);
-ini_set('display_errors', '1');
+
+// Safely set display_errors if ini_set is available
+if (function_exists('ini_set')) {
+    @ini_set('display_errors', '1');
+}
 
 /*
  |--------------------------------------------------------------------------
