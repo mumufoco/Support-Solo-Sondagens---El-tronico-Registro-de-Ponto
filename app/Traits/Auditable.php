@@ -208,11 +208,8 @@ trait Auditable
     {
         $session = session();
 
-        // Try different session keys
-        $userId = $session->get('user_id')
-            ?? $session->get('employee_id')
-            ?? $session->get('id')
-            ?? null;
+        // Get user ID from standardized session key
+        $userId = $session->get('user_id') ?? null;
 
         return $userId ? (int)$userId : null;
     }

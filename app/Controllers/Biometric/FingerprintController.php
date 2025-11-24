@@ -470,7 +470,7 @@ class FingerprintController extends BaseController
     private function getAuthenticatedEmployee(): ?array
     {
         $session = session();
-        $employeeId = $session->get('employee_id');
+        $employeeId = $session->get('user_id');
 
         if (!$employeeId) {
             return null;

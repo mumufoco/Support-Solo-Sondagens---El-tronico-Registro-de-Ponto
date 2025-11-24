@@ -31,47 +31,39 @@ class AuditLogModel extends Model
     protected $useTimestamps = true;
     protected $dateFormat    = 'datetime';
     protected $createdField  = 'created_at';
-    protected $updatedField  = ''; // Audit logs are immutable - no updates
+    protected $updatedField  = false; // Audit logs are immutable - no updates
 
     // Callbacks
-    protected $allowCallbacks = false; // DISABLED: Causing type errors in PHP 8.4+
+    protected $allowCallbacks = true;
+    protected $afterFind      = ['decodeJsonFields'];
 
     /**
-     * Encode values arrays to JSON
+     * Decode JSON fields after finding records
+     *
+     * @param array $data
+     * @return array
      */
-    protected function encodeValues(array $data): array
-    {
-        if (isset($data['data']['old_values']) && is_array($data['data']['old_values'])) {
-            $data['data']['old_values'] = json_encode($data['data']['old_values']);
-        }
-
-        if (isset($data['data']['new_values']) && is_array($data['data']['new_values'])) {
-            $data['data']['new_values'] = json_encode($data['data']['new_values']);
-        }
-
-        return $data;
-    }
-
-    /**
-     * Decode values JSON to arrays
-     */
-    protected function decodeValues(array $data): array
+    protected function decodeJsonFields(array $data): array
     {
         if (isset($data['data'])) {
             if (is_array($data['data'])) {
+                // Multiple records
                 foreach ($data['data'] as &$row) {
-                    if (isset($row->old_values) && is_string($row->old_values)) {
-                        $row->old_values = json_decode($row->old_values, true);
-                    }
-                    if (isset($row->new_values) && is_string($row->new_values)) {
-                        $row->new_values = json_decode($row->new_values, true);
+                    if (is_object($row)) {
+                        if (isset($row->old_values) && is_string($row->old_values) && $row->old_values !== '') {
+                            $row->old_values = json_decode($row->old_values, true);
+                        }
+                        if (isset($row->new_values) && is_string($row->new_values) && $row->new_values !== '') {
+                            $row->new_values = json_decode($row->new_values, true);
+                        }
                     }
                 }
             } elseif (is_object($data['data'])) {
-                if (isset($data['data']->old_values) && is_string($data['data']->old_values)) {
+                // Single record
+                if (isset($data['data']->old_values) && is_string($data['data']->old_values) && $data['data']->old_values !== '') {
                     $data['data']->old_values = json_decode($data['data']->old_values, true);
                 }
-                if (isset($data['data']->new_values) && is_string($data['data']->new_values)) {
+                if (isset($data['data']->new_values) && is_string($data['data']->new_values) && $data['data']->new_values !== '') {
                     $data['data']->new_values = json_decode($data['data']->new_values, true);
                 }
             }

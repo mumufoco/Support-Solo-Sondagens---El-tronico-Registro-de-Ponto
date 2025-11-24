@@ -36,7 +36,7 @@ class LGPDController extends BaseController
      */
     public function consents(): string
     {
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
 
         if (!$employeeId) {
             return redirect()->to('/login')->with('error', 'Você precisa estar autenticado');
@@ -98,7 +98,7 @@ class LGPDController extends BaseController
      */
     public function grantConsent(): ResponseInterface
     {
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
 
         if (!$employeeId) {
             return $this->response->setJSON([
@@ -137,7 +137,7 @@ class LGPDController extends BaseController
      */
     public function revokeConsent(): ResponseInterface
     {
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
 
         if (!$employeeId) {
             return $this->response->setJSON([
@@ -166,7 +166,7 @@ class LGPDController extends BaseController
      */
     public function requestExport(): ResponseInterface
     {
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
 
         if (!$employeeId) {
             return $this->response->setJSON([
@@ -212,7 +212,7 @@ class LGPDController extends BaseController
      */
     public function downloadExport(string $exportId): ResponseInterface
     {
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
 
         if (!$employeeId) {
             return redirect()->to('/login')->with('error', 'Você precisa estar autenticado');

@@ -34,7 +34,7 @@ class ChatAPIController extends ResourceController
     protected function getAuthenticatedEmployee(): ?array
     {
         // Try session first
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
 
         // Try Bearer token
         if (!$employeeId) {
