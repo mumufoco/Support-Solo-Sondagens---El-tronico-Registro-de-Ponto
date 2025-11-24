@@ -38,7 +38,7 @@ class LoginController extends BaseController
         // Validate input
         $rules = [
             'email'    => 'required|valid_email',
-            'password' => 'required|min_length[12]',
+            'password' => 'required|min_length[6]',
         ];
 
         if (!$this->validate($rules)) {
@@ -132,11 +132,14 @@ class LoginController extends BaseController
 
         // Create session
         $sessionData = [
-            'user_id'   => $user->id,
-            'user_name' => $user->name,
-            'user_email' => $user->email,
-            'user_role'  => $user->role,
-            'logged_in'  => true,
+            'user_id'       => $user->id,
+            'user_name'     => $user->name,
+            'user_email'    => $user->email,
+            'user_role'     => $user->role,
+            'user_active'   => (bool) $user->active, // Active status for AuthFilter check
+            'last_activity' => time(), // Track session activity
+            'logged_in'     => true,
+            'employee'      => (array) $user, // Full employee data for compatibility
         ];
 
         $this->session->set($sessionData);

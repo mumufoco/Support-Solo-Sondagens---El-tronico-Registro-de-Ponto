@@ -30,7 +30,7 @@ class TwoFactorAuthController extends BaseController
      */
     public function setup()
     {
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
 
         if (!$employeeId) {
             return redirect()->to('/auth/login')->with('error', 'Sessão expirada.');
@@ -71,7 +71,7 @@ class TwoFactorAuthController extends BaseController
      */
     public function enable()
     {
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
         $secret = session()->get('2fa_setup_secret');
 
         if (!$employeeId || !$secret) {
@@ -148,7 +148,7 @@ class TwoFactorAuthController extends BaseController
      */
     public function verify()
     {
-        $employeeId = session()->get('2fa_pending_employee_id');
+        $employeeId = session()->get('2fa_pending_user_id');
 
         if (!$employeeId) {
             return redirect()->to('/auth/login')
@@ -190,8 +190,8 @@ class TwoFactorAuthController extends BaseController
         }
 
         // Complete login
-        session()->remove('2fa_pending_employee_id');
-        session()->set('employee_id', $employeeId);
+        session()->remove('2fa_pending_user_id');
+        session()->set('user_id', $employeeId);
         session()->set('2fa_verified', true);
 
         log_message('info', "2FA verified successfully for employee ID: {$employeeId}");
@@ -237,7 +237,7 @@ class TwoFactorAuthController extends BaseController
      */
     public function manage()
     {
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
 
         if (!$employeeId) {
             return redirect()->to('/auth/login')->with('error', 'Sessão expirada.');
@@ -267,7 +267,7 @@ class TwoFactorAuthController extends BaseController
      */
     public function disable()
     {
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
 
         if (!$employeeId) {
             return redirect()->to('/auth/login')->with('error', 'Sessão expirada.');
@@ -312,7 +312,7 @@ class TwoFactorAuthController extends BaseController
      */
     public function regenerateBackupCodes()
     {
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
 
         if (!$employeeId) {
             return redirect()->to('/auth/login')->with('error', 'Sessão expirada.');

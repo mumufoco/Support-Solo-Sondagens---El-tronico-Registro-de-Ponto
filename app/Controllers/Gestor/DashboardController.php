@@ -17,7 +17,7 @@ class DashboardController extends BaseController
         $timePunchModel = new TimePunchModel();
 
         // Pegar funcionários da equipe do gestor logado
-        $currentEmployeeId = session()->get('employee_id');
+        $currentEmployeeId = session()->get('user_id');
 
         if (!$currentEmployeeId) {
             return redirect()->to('/auth/login')->with('error', 'Sessão expirada.');
@@ -63,7 +63,7 @@ class DashboardController extends BaseController
 
         $justificationModel->update($id, [
             'status' => 'approved',
-            'approved_by' => session()->get('employee_id'),
+            'approved_by' => session()->get('user_id'),
             'approved_at' => date('Y-m-d H:i:s'),
         ]);
 
@@ -89,7 +89,7 @@ class DashboardController extends BaseController
 
         $justificationModel->update($id, [
             'status' => 'rejected',
-            'approved_by' => session()->get('employee_id'),
+            'approved_by' => session()->get('user_id'),
             'approved_at' => date('Y-m-d H:i:s'),
         ]);
 

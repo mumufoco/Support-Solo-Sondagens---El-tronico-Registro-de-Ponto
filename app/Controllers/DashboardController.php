@@ -29,7 +29,7 @@ class DashboardController extends BaseController
     public function index()
     {
         // Check if user is logged in
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
 
         if (!$employeeId) {
             return redirect()->to('/auth/login');
@@ -63,7 +63,7 @@ class DashboardController extends BaseController
     public function getData()
     {
         // Check if user is logged in
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
 
         if (!$employeeId) {
             return $this->response->setJSON([
@@ -96,7 +96,7 @@ class DashboardController extends BaseController
     public function exportCSV()
     {
         // Check if user is logged in
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
 
         if (!$employeeId) {
             return redirect()->to('/auth/login');

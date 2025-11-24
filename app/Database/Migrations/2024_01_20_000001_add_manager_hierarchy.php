@@ -20,35 +20,44 @@ class AddManagerHierarchy extends Migration
                 'constraint' => 11,
                 'unsigned'   => true,
                 'null'       => true,
-                'after'      => 'role',
                 'comment'    => 'ID do gestor responsável (FK para employees)',
             ],
         ];
 
         $this->forge->addColumn('employees', $fields);
 
-        // Add foreign key
-        $this->db->query('
-            ALTER TABLE employees
-            ADD CONSTRAINT fk_employees_manager
-            FOREIGN KEY (manager_id) REFERENCES employees(id)
-            ON DELETE SET NULL
-            ON UPDATE CASCADE
-        ');
+        // Add foreign key (only for MySQL - SQLite requires table recreation)
+        if ($this->db->DBDriver !== 'SQLite3') {
+            $this->db->query('
+                ALTER TABLE employees
+                ADD CONSTRAINT fk_employees_manager
+                FOREIGN KEY (manager_id) REFERENCES employees(id)
+                ON DELETE SET NULL
+                ON UPDATE CASCADE
+            ');
+        }
 
         // Add index for faster queries
-        $this->db->query('
-            CREATE INDEX idx_employees_manager ON employees(manager_id, active)
-        ');
+        if ($this->db->DBDriver === 'SQLite3') {
+            $this->db->query('CREATE INDEX IF NOT EXISTS idx_employees_manager ON employees(manager_id)');
+        } else {
+            $this->db->query('CREATE INDEX idx_employees_manager ON employees(manager_id, active)');
+        }
     }
 
     public function down()
     {
-        // Drop foreign key
-        $this->db->query('ALTER TABLE employees DROP FOREIGN KEY fk_employees_manager');
+        // Drop foreign key (only for MySQL)
+        if ($this->db->DBDriver !== 'SQLite3') {
+            $this->db->query('ALTER TABLE employees DROP FOREIGN KEY fk_employees_manager');
+        }
 
         // Drop index
-        $this->db->query('DROP INDEX idx_employees_manager ON employees');
+        if ($this->db->DBDriver === 'SQLite3') {
+            $this->db->query('DROP INDEX IF EXISTS idx_employees_manager');
+        } else {
+            $this->db->query('DROP INDEX idx_employees_manager ON employees');
+        }
 
         // Drop column
         $this->forge->dropColumn('employees', 'manager_id');

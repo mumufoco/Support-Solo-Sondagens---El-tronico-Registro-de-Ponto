@@ -13,17 +13,22 @@ class AddPerformanceIndexes extends Migration
 {
     /**
      * Helper method to add index only if it doesn't exist
+     * Supports both MySQL and SQLite syntax
      */
     private function addIndexIfNotExists($table, $indexName, $columns)
     {
         try {
-            $this->db->query("
-                ALTER TABLE {$table}
-                ADD INDEX {$indexName} ({$columns})
-            ");
+            if ($this->db->DBDriver === 'SQLite3') {
+                // SQLite uses CREATE INDEX syntax
+                $this->db->query("CREATE INDEX IF NOT EXISTS {$indexName} ON {$table} ({$columns})");
+            } else {
+                // MySQL/MariaDB uses ALTER TABLE ADD INDEX syntax
+                $this->db->query("ALTER TABLE {$table} ADD INDEX {$indexName} ({$columns})");
+            }
         } catch (\Exception $e) {
             // Ignore duplicate key errors (index already exists)
-            if (strpos($e->getMessage(), 'Duplicate key name') === false) {
+            if (strpos($e->getMessage(), 'Duplicate key name') === false &&
+                strpos($e->getMessage(), 'already exists') === false) {
                 throw $e;
             }
         }
@@ -104,43 +109,60 @@ class AddPerformanceIndexes extends Migration
         log_message('info', 'Performance indexes created successfully');
     }
 
+    /**
+     * Helper method to drop index with database-specific syntax
+     */
+    private function dropIndexIfExists($indexName, $table = null)
+    {
+        try {
+            if ($this->db->DBDriver === 'SQLite3') {
+                // SQLite uses DROP INDEX syntax (table name not needed)
+                $this->db->query("DROP INDEX IF EXISTS {$indexName}");
+            } else {
+                // MySQL/MariaDB uses DROP INDEX ON syntax
+                $this->db->query("DROP INDEX {$indexName} ON {$table}");
+            }
+        } catch (\Exception $e) {
+            // Silently ignore errors (index might not exist)
+        }
+    }
+
     public function down()
     {
         // Drop indexes in reverse order
 
         // warnings
-        try { $this->db->query('DROP INDEX idx_type_status ON warnings'); } catch (\Exception $e) {}
-        try { $this->db->query('DROP INDEX idx_employee_date ON warnings'); } catch (\Exception $e) {}
+        $this->dropIndexIfExists('idx_type_status', 'warnings');
+        $this->dropIndexIfExists('idx_employee_date', 'warnings');
 
         // biometric_templates
-        $this->db->query('DROP INDEX idx_employee_type ON biometric_templates');
+        $this->dropIndexIfExists('idx_employee_type', 'biometric_templates');
 
         // justifications
-        $this->db->query('DROP INDEX idx_status_date ON justifications');
-        $this->db->query('DROP INDEX idx_employee_status_date ON justifications');
+        $this->dropIndexIfExists('idx_status_date', 'justifications');
+        $this->dropIndexIfExists('idx_employee_status_date', 'justifications');
 
         // employees
-        // $this->db->query('DROP INDEX idx_manager_active ON employees');  // Not created
-        $this->db->query('DROP INDEX idx_department_active ON employees');
+        $this->dropIndexIfExists('idx_department_active', 'employees');
 
         // chat_messages (if exists)
         if ($this->db->tableExists('chat_messages')) {
-            try { $this->db->query('DROP INDEX idx_room_date ON chat_messages'); } catch (\Exception $e) {}
-            try { $this->db->query('DROP INDEX idx_sender_room_date ON chat_messages'); } catch (\Exception $e) {}
+            $this->dropIndexIfExists('idx_room_date', 'chat_messages');
+            $this->dropIndexIfExists('idx_sender_room_date', 'chat_messages');
         }
 
         // audit_logs
         if ($this->db->tableExists('audit_logs')) {
-            try { $this->db->query('DROP INDEX idx_entity_type_id ON audit_logs'); } catch (\Exception $e) {}
-            try { $this->db->query('DROP INDEX idx_action_date ON audit_logs'); } catch (\Exception $e) {}
-            try { $this->db->query('DROP INDEX idx_user_action_date ON audit_logs'); } catch (\Exception $e) {}
+            $this->dropIndexIfExists('idx_entity_type_id', 'audit_logs');
+            $this->dropIndexIfExists('idx_action_date', 'audit_logs');
+            $this->dropIndexIfExists('idx_user_action_date', 'audit_logs');
         }
 
         // time_punches
-        $this->db->query('DROP INDEX idx_employee_method ON time_punches');
-        $this->db->query('DROP INDEX idx_geofence ON time_punches');
-        $this->db->query('DROP INDEX idx_type_date ON time_punches');
-        $this->db->query('DROP INDEX idx_employee_date ON time_punches');
+        $this->dropIndexIfExists('idx_employee_method', 'time_punches');
+        $this->dropIndexIfExists('idx_geofence', 'time_punches');
+        $this->dropIndexIfExists('idx_type_date', 'time_punches');
+        $this->dropIndexIfExists('idx_employee_date', 'time_punches');
 
         log_message('info', 'Performance indexes dropped');
     }

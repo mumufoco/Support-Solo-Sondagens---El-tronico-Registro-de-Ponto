@@ -29,7 +29,7 @@ class ChatController extends BaseController
      */
     protected function getAuthenticatedEmployee(): ?array
     {
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
 
         if (!$employeeId) {
             return null;

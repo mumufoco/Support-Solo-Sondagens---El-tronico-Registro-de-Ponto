@@ -24,6 +24,139 @@ class TimesheetController extends BaseController
     }
 
     /**
+     * Display timesheet history (espelho de ponto)
+     */
+    public function index()
+    {
+        // Get authenticated employee
+        $employee = $this->getAuthenticatedEmployee();
+
+        if (!$employee) {
+            return redirect()->to('/login')->with('error', 'Você precisa estar autenticado.');
+        }
+
+        // Get month filter (format: YYYY-MM)
+        $selectedMonth = $this->request->getGet('month') ?: date('Y-m');
+
+        // Get target employee ID (for managers)
+        $targetEmployeeId = $this->request->getGet('employee_id') ?? $employee['id'];
+
+        // Validate access
+        if ($targetEmployeeId != $employee['id'] && !in_array($employee['role'], ['admin', 'gestor'])) {
+            $targetEmployeeId = $employee['id'];
+        }
+
+        // Get viewing employee
+        $viewingEmployee = $this->employeeModel->find($targetEmployeeId);
+
+        // Get consolidated records for the month
+        $startDate = $selectedMonth . '-01';
+        $endDate = date('Y-m-t', strtotime($startDate)); // Last day of month
+
+        $records = $this->consolidatedModel
+            ->where('employee_id', $targetEmployeeId)
+            ->where('date >=', $startDate)
+            ->where('date <=', $endDate)
+            ->orderBy('date', 'ASC')
+            ->findAll();
+
+        // Calculate summary
+        $totalHours = 0;
+        $totalExpected = 0;
+        $totalExtra = 0;
+        $totalOwed = 0;
+        $lateArrivals = 0;
+        $daysWorked = 0;
+
+        $dailyRecords = [];
+        foreach ($records as $record) {
+            $totalHours += $record->total_worked ?? 0;
+            $totalExpected += $record->expected ?? 0;
+            $totalExtra += $record->extra ?? 0;
+            $totalOwed += $record->owed ?? 0;
+
+            if ($record->total_worked > 0) {
+                $daysWorked++;
+            }
+
+            // Get punches for this day
+            $dayPunches = $this->timePunchModel
+                ->where('employee_id', $targetEmployeeId)
+                ->where('DATE(punch_time)', $record->date)
+                ->orderBy('punch_time', 'ASC')
+                ->findAll();
+
+            // Organize punches by type
+            $entrada = null;
+            $inicio_intervalo = null;
+            $fim_intervalo = null;
+            $saida = null;
+
+            foreach ($dayPunches as $punch) {
+                $time = date('H:i', strtotime($punch->punch_time));
+
+                if ($punch->punch_type === 'entrada' && !$entrada) {
+                    $entrada = $time;
+                } elseif ($punch->punch_type === 'saida' && !$inicio_intervalo) {
+                    $inicio_intervalo = $time; // First saida is lunch start
+                } elseif ($punch->punch_type === 'entrada' && $entrada) {
+                    $fim_intervalo = $time; // Second entrada is lunch end
+                } elseif ($punch->punch_type === 'saida') {
+                    $saida = $time; // Last saida is day end
+                }
+            }
+
+            // Check if late (assuming work starts at 08:00)
+            $entradaLate = false;
+            if ($entrada && strtotime($entrada) > strtotime('08:10')) {
+                $entradaLate = true;
+                $lateArrivals++;
+            }
+
+            // Prepare daily record for view
+            $dailyRecords[] = [
+                'date' => $record->date,
+                'date_formatted' => date('d/m/Y', strtotime($record->date)),
+                'day_of_week' => strftime('%a', strtotime($record->date)),
+                'entrada' => $entrada,
+                'entrada_late' => $entradaLate,
+                'inicio_intervalo' => $inicio_intervalo,
+                'fim_intervalo' => $fim_intervalo,
+                'saida' => $saida,
+                'total_hours' => number_format($record->total_worked, 2),
+                'balance' => $record->extra - $record->owed,
+                'balance_formatted' => number_format(abs($record->extra - $record->owed), 2),
+                'missing_punches' => $record->incomplete ?? false,
+                'is_weekend' => in_array(date('N', strtotime($record->date)), [6, 7]),
+                'is_holiday' => false, // TODO: Check holidays table
+                'holiday_name' => null,
+            ];
+        }
+
+        // Calculate expected days (workdays in month)
+        $expectedDays = 22; // Default estimate for business days
+
+        // Summary data
+        $summary = [
+            'total_hours' => number_format($totalHours, 2),
+            'expected_hours' => number_format($totalExpected, 2),
+            'balance' => $totalExtra - $totalOwed,
+            'balance_formatted' => number_format(abs($totalExtra - $totalOwed), 2),
+            'days_worked' => $daysWorked,
+            'expected_days' => $expectedDays,
+            'late_arrivals' => $lateArrivals,
+        ];
+
+        return view('timesheet/index', [
+            'employee' => $employee,
+            'viewingEmployee' => $viewingEmployee,
+            'selectedMonth' => $selectedMonth,
+            'summary' => $summary,
+            'dailyRecords' => $dailyRecords,
+        ]);
+    }
+
+    /**
      * Dashboard: Balance and evolution chart
      */
     public function balance()
@@ -113,6 +246,7 @@ class TimesheetController extends BaseController
             'incompleteDays' => $incompleteDays,
             'period' => $period,
             'irregularitiesOnly' => $irregularitiesOnly,
+            'employee_id' => $targetEmployeeId ?? '', // For URL generation in view
         ]);
     }
 

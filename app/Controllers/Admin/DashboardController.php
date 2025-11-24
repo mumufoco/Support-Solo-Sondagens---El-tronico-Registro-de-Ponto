@@ -25,7 +25,7 @@ class DashboardController extends BaseController
             'punches_today' => $timePunchModel->where('DATE(punch_time)', date('Y-m-d'))->countAllResults(),
             'pending_justifications' => $justificationModel->where('status', 'pending')->countAllResults(),
             'pending_consents' => $consentModel->where('granted', false)->countAllResults(),
-            'enrolled_biometrics' => $biometricModel->where('is_active', true)->countAllResults(),
+            'enrolled_biometrics' => $biometricModel->where('active', true)->countAllResults(),
 
             // Marcações últimos 7 dias (para gráfico Chart.js)
             'punches_last_7_days' => $this->getPunchesLast7Days(),
@@ -116,9 +116,13 @@ class DashboardController extends BaseController
         $timePunchModel = new TimePunchModel();
 
         $totalEmployees = $employeeModel->where('active', true)->countAllResults();
+
+        // Cross-database compatible date range for current month
+        $firstDayOfMonth = date('Y-m-01 00:00:00');
+        $lastDayOfMonth = date('Y-m-t 23:59:59');
         $punchesThisMonth = $timePunchModel
-            ->where('MONTH(punch_time)', date('m'))
-            ->where('YEAR(punch_time)', date('Y'))
+            ->where('punch_time >=', $firstDayOfMonth)
+            ->where('punch_time <=', $lastDayOfMonth)
             ->countAllResults();
 
         $avgPunchesPerDay = $punchesThisMonth > 0 ? round($punchesThisMonth / date('j'), 1) : 0;

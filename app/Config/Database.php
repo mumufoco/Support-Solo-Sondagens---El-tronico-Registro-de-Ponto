@@ -19,6 +19,9 @@ class Database extends Config
     /**
      * The default database connection.
      * Now configured to use environment variables for flexibility
+     *
+     * PRODUCTION: Uses MySQL/MariaDB
+     * DEVELOPMENT: Can use SQLite for local testing
      */
     public array $default = [
         'DSN'          => '',
@@ -26,20 +29,18 @@ class Database extends Config
         'username'     => '',
         'password'     => '',
         'database'     => '',
-        'DBDriver'     => 'Postgre',
+        'DBDriver'     => 'MySQLi',  // Changed from Postgre to MySQLi for production
         'DBPrefix'     => '',
         'pConnect'     => false,
         'DBDebug'      => (ENVIRONMENT !== 'production'),
-        'charset'      => '',  // Will be set in constructor based on DBDriver
-        'DBCollat'     => '',  // Will be set in constructor based on DBDriver
-        'charset'      => 'utf8',
-        'DBCollat'     => '',
+        'charset'      => 'utf8mb4',
+        'DBCollat'     => 'utf8mb4_general_ci',
         'swapPre'      => '',
         'encrypt'      => false,
         'compress'     => false,
         'strictOn'     => false,
         'failover'     => [],
-        'port'         => 6543,
+        'port'         => 3306,  // Changed from 6543 (Postgre) to 3306 (MySQL)
         'numberNative' => false,
         'dateFormat'   => [
             'date'     => 'Y-m-d',
@@ -80,10 +81,10 @@ class Database extends Config
         $this->default['username'] = env('database.default.username', 'root');
         $this->default['password'] = env('database.default.password', '');
         $this->default['database'] = env('database.default.database', 'ponto_eletronico');
-        $this->default['DBDriver'] = env('database.default.DBDriver', 'Postgre');
-        $this->default['port']     = env('database.default.port', 6543);
-        $this->default['charset']  = env('database.default.charset', 'utf8');
-        $this->default['DBCollat'] = env('database.default.DBCollat', '');
+        $this->default['DBDriver'] = env('database.default.DBDriver', 'MySQLi');  // Default to MySQL for production
+        $this->default['port']     = env('database.default.port', 3306);  // MySQL port
+        $this->default['charset']  = env('database.default.charset', 'utf8mb4');
+        $this->default['DBCollat'] = env('database.default.DBCollat', 'utf8mb4_general_ci');
 
         // Ensure that we always set the database group to 'tests' if
         // we are currently running an automated test suite, so that
@@ -98,6 +99,10 @@ class Database extends Config
         if ($driver === 'Postgre') {
             $this->default['charset'] = 'utf8';
             $this->default['DBCollat'] = 'utf8_general_ci';
+        } elseif ($driver === 'SQLite3') {
+            // SQLite doesn't use charset/collation the same way
+            $this->default['charset'] = '';
+            $this->default['DBCollat'] = '';
         } elseif (in_array($driver, ['MySQLi', 'SQLSRV'])) {
             $this->default['charset'] = 'utf8mb4';
             $this->default['DBCollat'] = 'utf8mb4_general_ci';

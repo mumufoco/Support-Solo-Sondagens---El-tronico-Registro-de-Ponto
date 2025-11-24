@@ -64,11 +64,9 @@ if (!defined('ENVIRONMENT')) {
  *---------------------------------------------------------------
  */
 
-// Force critical PHP settings for production environment
-// This ensures session cookies are secure even if .htaccess/.user.ini don't work
-if (file_exists(__DIR__ . '/php-config-production.php')) {
-    require __DIR__ . '/php-config-production.php';
-}
+// Removed: php-config-production.php has been deleted
+// Session and PHP configuration is now handled by .user.ini
+// This prevents conflicts with CodeIgniter's session management
 
 /*
  *---------------------------------------------------------------
@@ -107,12 +105,9 @@ if (is_file($composerAutoload)) {
     require $composerAutoload;
 }
 
-// LOAD EXCEPTION CLASSES BEFORE BOOT
-// Load critical exception classes manually before Boot.php to prevent
-// "InvalidArgumentException not found" errors during DotEnv initialization
-if (file_exists(__DIR__ . '/bootstrap-exceptions.php')) {
-    require __DIR__ . '/bootstrap-exceptions.php';
-}
+// Removed: bootstrap-exceptions.php has been deleted
+// Exception classes are now properly loaded via Composer autoloader
+// This prevents duplicate loading and potential conflicts
 
 // LOAD THE FRAMEWORK BOOTSTRAP FILE
 require $paths->systemDirectory . '/Boot.php';

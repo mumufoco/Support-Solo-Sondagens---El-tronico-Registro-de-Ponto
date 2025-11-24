@@ -48,7 +48,7 @@ class TwoFactorAuthFilter implements FilterInterface
         }
 
         // Check if user is logged in
-        $employeeId = session()->get('employee_id');
+        $employeeId = session()->get('user_id');
 
         if (!$employeeId) {
             // Not logged in, let AuthFilter handle it
@@ -56,7 +56,7 @@ class TwoFactorAuthFilter implements FilterInterface
         }
 
         // Check if there's a pending 2FA verification
-        $pending2FA = session()->get('2fa_pending_employee_id');
+        $pending2FA = session()->get('2fa_pending_user_id');
 
         if ($pending2FA) {
             // User needs to complete 2FA verification
@@ -78,8 +78,8 @@ class TwoFactorAuthFilter implements FilterInterface
 
             if (!$verified) {
                 // Set pending 2FA and redirect to verification
-                session()->set('2fa_pending_employee_id', $employeeId);
-                session()->remove('employee_id');
+                session()->set('2fa_pending_user_id', $employeeId);
+                session()->remove('user_id');
 
                 return redirect()->to('/auth/2fa/verify')
                     ->with('info', 'Por favor, complete a verificação 2FA.');

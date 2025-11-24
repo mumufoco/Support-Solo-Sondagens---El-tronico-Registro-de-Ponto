@@ -103,8 +103,8 @@ class RateLimitFilter implements FilterInterface
         // Generate unique key for this request
         // Combine path and IP for granular rate limiting
         $ip = $this->rateLimitService->getClientIp();
-        // Use underscore instead of colon to avoid cache key validation errors
-        $key = str_replace('/', '_', $path) . '_' . str_replace('.', '_', $ip);
+        // Use MD5 hash to avoid IP collision issues (e.g., 192.168.1.1 vs 19.216.81.11)
+        $key = str_replace('/', '_', $path) . '_' . md5($ip);
 
         // Attempt to perform action (check and increment)
         $limitInfo = $this->rateLimitService->attempt($key, $limitType, $ip);
@@ -270,7 +270,7 @@ class RateLimitFilter implements FilterInterface
 
             // Log to audit if user is authenticated
             $session = session();
-            $employeeId = $session->get('employee_id');
+            $employeeId = $session->get('user_id');
 
             if ($employeeId) {
                 $auditModel = new \App\Models\AuditLogModel();
