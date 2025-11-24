@@ -48,6 +48,15 @@ class DatabaseBackupService
         $gzipPath = $filepath . '.gz';
 
         try {
+            // Verificar se exec() está disponível
+            if (!function_exists('exec')) {
+                throw new \RuntimeException(
+                    'A função exec() está desabilitada no servidor. ' .
+                    'Entre em contato com o administrador do servidor para habilitar esta função ' .
+                    'ou utilize um método alternativo de backup (phpMyAdmin, cPanel, etc.)'
+                );
+            }
+
             // Comando mysqldump
             $command = sprintf(
                 'mysqldump --user=%s --password=%s --host=%s --port=%s %s > %s 2>&1',
@@ -187,6 +196,15 @@ class DatabaseBackupService
         try {
             if (!file_exists($backupFile)) {
                 throw new \RuntimeException('Arquivo de backup não encontrado');
+            }
+
+            // Verificar se exec() está disponível
+            if (!function_exists('exec')) {
+                throw new \RuntimeException(
+                    'A função exec() está desabilitada no servidor. ' .
+                    'Entre em contato com o administrador do servidor para habilitar esta função ' .
+                    'ou utilize um método alternativo de restore (phpMyAdmin, cPanel, etc.)'
+                );
             }
 
             // Descomprimir

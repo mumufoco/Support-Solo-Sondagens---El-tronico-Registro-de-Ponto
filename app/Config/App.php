@@ -98,8 +98,11 @@ class App extends BaseConfig
 
     /**
      * Session Variables
+     *
+     * Note: Using SafeFileHandler for shared hosting compatibility
+     * where ini_set() may be disabled for security reasons.
      */
-    public string $sessionDriver            = 'CodeIgniter\Session\Handlers\FileHandler';
+    public string $sessionDriver            = 'App\Session\Handlers\SafeFileHandler';
     public string $sessionCookieName        = 'ponto_session';
     public int    $sessionExpiration        = 7200;
     public string $sessionSavePath          = WRITEPATH . 'session';
