@@ -4,6 +4,14 @@ namespace Config;
 
 use CodeIgniter\Database\Config;
 
+/**
+ * Define APPPATH if not already defined (for standalone script usage)
+ * This allows Database.php to be loaded outside of CI4 boot process
+ */
+if (!defined('APPPATH')) {
+    define('APPPATH', realpath(__DIR__ . '/../') . DIRECTORY_SEPARATOR);
+}
+
 class Database extends Config
 {
     /**

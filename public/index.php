@@ -100,9 +100,8 @@ $paths = new Paths();
 
 // LOAD COMPOSER AUTOLOADER
 // This must be loaded before Boot.php to ensure all classes are available
-$composerAutoload = FCPATH . '../vendor/autoload.php';
-if (is_file($composerAutoload)) {
-    require $composerAutoload;
+if (is_file(FCPATH . '../vendor/autoload.php')) {
+    require FCPATH . '../vendor/autoload.php';
 }
 
 // Removed: bootstrap-exceptions.php has been deleted
