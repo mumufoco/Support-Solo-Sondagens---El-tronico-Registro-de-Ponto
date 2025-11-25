@@ -40,8 +40,9 @@ class Services extends BaseService
 
         $logger = static::logger();
 
-        $driverName = $config->driver;
-        $driver     = new $driverName($config, static::request()->getIPAddress());
+        // ALWAYS use SafeFileHandler to avoid ini_set() issues
+        // Force SafeFileHandler regardless of configuration
+        $driver = new \App\Session\Handlers\SafeFileHandler($config, static::request()->getIPAddress());
         $driver->setLogger($logger);
 
         return new \App\Libraries\SafeSession($driver, $config);
