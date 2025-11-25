@@ -38,8 +38,27 @@ if (function_exists('ini_set') && function_exists('ini_get')) {
 define('IS_CLI', PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg');
 define('IS_WEB', !IS_CLI);
 
-// Iniciar sessão se for web
+// Definir caminhos corretos
+define('PUBLIC_DIR', __DIR__);
+define('ROOT_DIR', dirname(__DIR__));
+
+// Configurar caminho de sessão ANTES de session_start()
 if (IS_WEB) {
+    $sessionPath = ROOT_DIR . '/writable/session';
+
+    // Criar diretório de sessão se não existir
+    if (!is_dir($sessionPath)) {
+        @mkdir($sessionPath, 0755, true);
+    }
+
+    // Configurar caminho de sessão de forma segura
+    if (is_dir($sessionPath) && is_writable($sessionPath)) {
+        if (function_exists('ini_set')) {
+            @ini_set('session.save_path', $sessionPath);
+        }
+        session_save_path($sessionPath);
+    }
+
     session_start();
 }
 
@@ -416,7 +435,7 @@ try {
 
 function checkRequirements() {
     // Fix Composer platform check issue
-    $platformCheckFile = __DIR__ . '/vendor/composer/platform_check.php';
+    $platformCheckFile = ROOT_DIR . '/vendor/composer/platform_check.php';
     if (file_exists($platformCheckFile)) {
         // Read the file to check if it has PHP version issues
         $content = file_get_contents($platformCheckFile);
@@ -477,14 +496,14 @@ function checkRequirements() {
         ],
         [
             'name' => 'Diretório writable/ gravável',
-            'check' => is_writable(__DIR__ . '/writable'),
-            'current' => is_writable(__DIR__ . '/writable') ? 'Gravável' : 'Sem permissão',
+            'check' => is_writable(ROOT_DIR . '/writable'),
+            'current' => is_writable(ROOT_DIR . '/writable') ? 'Gravável' : 'Sem permissão',
             'solution' => 'Execute: sudo chmod -R 755 writable/ && sudo chown -R www-data:www-data writable/'
         ],
         [
             'name' => 'Composer instalado',
-            'check' => file_exists(__DIR__ . '/vendor/autoload.php'),
-            'current' => file_exists(__DIR__ . '/vendor/autoload.php') ? 'Instalado' : 'Não encontrado',
+            'check' => file_exists(ROOT_DIR . '/vendor/autoload.php'),
+            'current' => file_exists(ROOT_DIR . '/vendor/autoload.php') ? 'Instalado' : 'Não encontrado',
             'solution' => 'Execute: composer install --no-dev --optimize-autoloader'
         ],
     ];
@@ -534,7 +553,7 @@ function performInstallation($admin, $database, $app) {
         printInfo("\nCriando arquivo .env...");
     }
 
-    $template = file_get_contents(__DIR__ . '/.env.production.template');
+    $template = file_get_contents(ROOT_DIR . '/.env.production.template');
     if ($template === false) {
         throw new Exception("Arquivo .env.production.template não encontrado!");
     }
@@ -561,8 +580,8 @@ function performInstallation($admin, $database, $app) {
 
     $envContent = str_replace(array_keys($replacements), array_values($replacements), $template);
 
-    if (file_put_contents(__DIR__ . '/.env', $envContent)) {
-        @chmod(__DIR__ . '/.env', 0600);
+    if (file_put_contents(ROOT_DIR . '/.env', $envContent)) {
+        @chmod(ROOT_DIR . '/.env', 0600);
         if (IS_CLI) {
             printSuccess("Arquivo .env criado e protegido (permissão 600)");
         }
@@ -578,7 +597,7 @@ function performInstallation($admin, $database, $app) {
     if (isFunctionEnabled('exec')) {
         $output = [];
         $returnVar = 0;
-        @exec("cd " . escapeshellarg(__DIR__) . " && php spark migrate --all 2>&1", $output, $returnVar);
+        @exec("cd " . escapeshellarg(ROOT_DIR) . " && php spark migrate --all 2>&1", $output, $returnVar);
 
         if ($returnVar === 0) {
             if (IS_CLI) {
