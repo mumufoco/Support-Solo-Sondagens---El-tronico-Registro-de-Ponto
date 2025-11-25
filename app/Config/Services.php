@@ -19,14 +19,31 @@ use CodeIgniter\Config\BaseService;
  */
 class Services extends BaseService
 {
-    /*
-     * public static function example($getShared = true)
-     * {
-     *     if ($getShared) {
-     *         return static::getSharedInstance('example');
-     *     }
+    /**
+     * The Session class.
      *
-     *     return new \CodeIgniter\Example();
-     * }
+     * Overrides the default Session service to use SafeSession
+     * which avoids ini_set() calls that may fail in shared hosting.
+     *
+     * @param \Config\Session|null $config
+     * @param bool                 $getShared
+     *
+     * @return \App\Libraries\SafeSession
      */
+    public static function session(\Config\Session $config = null, bool $getShared = true)
+    {
+        if ($getShared) {
+            return static::getSharedInstance('session', $config);
+        }
+
+        $config ??= config('Session');
+
+        $logger = static::logger();
+
+        $driverName = $config->driver;
+        $driver     = new $driverName($config, static::request()->getIPAddress());
+        $driver->setLogger($logger);
+
+        return new \App\Libraries\SafeSession($driver, $config);
+    }
 }
