@@ -15,6 +15,15 @@ error_reporting(E_ALL);
 // Safely set display_errors if ini_set is available
 if (function_exists('ini_set')) {
     @ini_set('display_errors', '1');
+
+    // Pre-configure session settings to prevent CodeIgniter from calling ini_set() later
+    // This avoids "headers already sent" errors in shared hosting environments
+    @ini_set('session.use_strict_mode', '1');
+    @ini_set('session.use_only_cookies', '1');
+    @ini_set('session.cookie_httponly', '1');
+    @ini_set('session.cookie_samesite', 'Lax');
+    @ini_set('session.gc_probability', '1');
+    @ini_set('session.gc_divisor', '100');
 }
 
 /*
