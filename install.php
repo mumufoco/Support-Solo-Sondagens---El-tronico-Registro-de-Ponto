@@ -13,14 +13,25 @@
  */
 
 error_reporting(E_ALL);
-ini_set('display_errors', '1');
 
-// Fix common PHP configuration issues
-if (ini_get('session.gc_divisor') == 0) {
-    ini_set('session.gc_divisor', '100');
+// Safely set display_errors if ini_set is available
+if (function_exists('ini_set')) {
+    @ini_set('display_errors', '1');
 }
-if (ini_get('session.gc_probability') == 0) {
-    ini_set('session.gc_probability', '1');
+
+// Fix common PHP configuration issues (safely)
+if (function_exists('ini_set') && function_exists('ini_get')) {
+    // Wrap in try-catch to handle cases where ini_set is disabled
+    try {
+        if (@ini_get('session.gc_divisor') == 0) {
+            @ini_set('session.gc_divisor', '100');
+        }
+        if (@ini_get('session.gc_probability') == 0) {
+            @ini_set('session.gc_probability', '1');
+        }
+    } catch (Throwable $e) {
+        // Silently ignore if ini_set fails (shared hosting restriction)
+    }
 }
 
 // Detectar modo de execução
