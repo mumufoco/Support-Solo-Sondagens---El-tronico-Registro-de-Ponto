@@ -37,6 +37,46 @@ if (version_compare(PHP_VERSION, $minPhpVersion, '<')) {
 
 /*
  *---------------------------------------------------------------
+ * FIX SESSION CONFIGURATION (BEFORE ANYTHING ELSE)
+ *---------------------------------------------------------------
+ * This fixes "session.gc_divisor must be greater than 0" error
+ * that occurs in shared hosting environments where PHP is
+ * misconfigured. We configure sessions via PHP code instead
+ * of relying on .user.ini which may be ignored or overridden.
+ */
+
+// Only configure if session hasn't started yet
+if (session_status() === PHP_SESSION_NONE) {
+    // Disable warnings temporarily to suppress ini_set errors
+    $originalErrorReporting = error_reporting();
+    error_reporting(E_ALL & ~E_WARNING & ~E_NOTICE);
+
+    // Try to fix session configuration via ini_set (may fail on shared hosting)
+    if (function_exists('ini_set')) {
+        // Session garbage collection - FIX THE MAIN ERROR
+        @ini_set('session.gc_probability', '1');
+        @ini_set('session.gc_divisor', '100');  // MUST be > 0
+        @ini_set('session.gc_maxlifetime', '7200');
+
+        // Session security
+        @ini_set('session.use_strict_mode', '1');
+        @ini_set('session.use_only_cookies', '1');
+        @ini_set('session.cookie_httponly', '1');
+        @ini_set('session.cookie_samesite', 'Lax');
+
+        // Session save path
+        $sessionPath = dirname(__DIR__) . '/writable/session';
+        if (is_dir($sessionPath) && is_writable($sessionPath)) {
+            @ini_set('session.save_path', $sessionPath);
+        }
+    }
+
+    // Restore original error reporting
+    error_reporting($originalErrorReporting);
+}
+
+/*
+ *---------------------------------------------------------------
  * DEFINE ENVIRONMENT CONSTANT EARLY
  *---------------------------------------------------------------
  */
