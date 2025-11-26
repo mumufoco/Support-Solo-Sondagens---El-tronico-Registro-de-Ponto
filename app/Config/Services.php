@@ -30,7 +30,7 @@ class Services extends BaseService
      *
      * @return \App\Libraries\SafeSession
      */
-    public static function session(\Config\Session $config = null, bool $getShared = true)
+    public static function session(?\Config\Session $config = null, bool $getShared = true)
     {
         if ($getShared) {
             return static::getSharedInstance('session', $config);
