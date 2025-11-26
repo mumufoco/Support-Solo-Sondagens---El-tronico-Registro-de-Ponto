@@ -19,39 +19,24 @@ use CodeIgniter\Config\BaseService;
  */
 class Services extends BaseService
 {
-    /**
-     * The Session class.
+    /*
+     * --------------------------------------------------------------------
+     * Session Service - REMOVED
+     * --------------------------------------------------------------------
      *
-     * Overrides the default Session service to use SafeSession
-     * which avoids ini_set() calls that may fail in shared hosting.
+     * The custom session() override has been removed because it causes
+     * circular dependency issues during early boot:
      *
-     * @param \Config\Session|null $config
-     * @param bool                 $getShared
+     * - session() calls logger()
+     * - logger() calls config() helper
+     * - config() helper doesn't exist until boot is complete
+     * - Result: Fatal error before app can start
      *
-     * @return \App\Libraries\SafeSession
+     * Session configuration is now handled through:
+     * - app/Config/Session.php (sets SafeFileHandler as default driver)
+     * - CodeIgniter's default session service (uses driver from config)
+     *
+     * SafeFileHandler is automatically used because it's set as the
+     * default driver in Session.php line 29.
      */
-    public static function session(?\Config\Session $config = null, bool $getShared = true)
-    {
-        if ($getShared) {
-            return static::getSharedInstance('session', $config);
-        }
-
-        // Ensure WRITEPATH is defined before instantiating Session config
-        if (!defined('WRITEPATH')) {
-            // Define temporarily with a sensible default
-            // This will be overridden by the actual WRITEPATH from Boot.php
-            define('WRITEPATH', realpath(__DIR__ . '/../../writable') . DIRECTORY_SEPARATOR);
-        }
-
-        $config ??= new \Config\Session();
-
-        $logger = static::logger();
-
-        // ALWAYS use SafeFileHandler to avoid ini_set() issues
-        // Force SafeFileHandler regardless of configuration
-        $driver = new \App\Session\Handlers\SafeFileHandler($config, static::request()->getIPAddress());
-        $driver->setLogger($logger);
-
-        return new \App\Libraries\SafeSession($driver, $config);
-    }
 }
