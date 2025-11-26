@@ -61,8 +61,29 @@ class Session extends BaseConfig
      * Please read up the manual for the format with other session drivers.
      *
      * IMPORTANT: You are REQUIRED to set a valid save path!
+     *
+     * NOTE: We cannot use WRITEPATH constant here as it may not be defined
+     * when this class is autoloaded. The path is set in __construct() instead.
      */
-    public string $savePath = WRITEPATH . 'session';
+    public string $savePath = '';
+
+    /**
+     * Constructor
+     *
+     * Sets savePath using WRITEPATH if available, otherwise uses fallback path
+     */
+    public function __construct()
+    {
+        parent::__construct();
+
+        // Set savePath using WRITEPATH if defined, otherwise use fallback
+        if (defined('WRITEPATH')) {
+            $this->savePath = WRITEPATH . 'session';
+        } else {
+            // Fallback: calculate writable path relative to this config file
+            $this->savePath = realpath(__DIR__ . '/../../writable') . DIRECTORY_SEPARATOR . 'session';
+        }
+    }
 
     /**
      * --------------------------------------------------------------------------
