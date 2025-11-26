@@ -36,6 +36,13 @@ class Services extends BaseService
             return static::getSharedInstance('session', $config);
         }
 
+        // Ensure WRITEPATH is defined before instantiating Session config
+        if (!defined('WRITEPATH')) {
+            // Define temporarily with a sensible default
+            // This will be overridden by the actual WRITEPATH from Boot.php
+            define('WRITEPATH', realpath(__DIR__ . '/../../writable') . DIRECTORY_SEPARATOR);
+        }
+
         $config ??= new \Config\Session();
 
         $logger = static::logger();
