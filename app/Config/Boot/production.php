@@ -16,16 +16,18 @@ error_reporting(E_ALL & ~E_DEPRECATED);
 // Safely set display_errors if ini_set is available
 if (function_exists('ini_set')) {
     @ini_set('display_errors', '0');
-
-    // Pre-configure session settings to prevent CodeIgniter from calling ini_set() later
-    // This avoids "headers already sent" errors in shared hosting environments
-    @ini_set('session.use_strict_mode', '1');
-    @ini_set('session.use_only_cookies', '1');
-    @ini_set('session.cookie_httponly', '1');
-    @ini_set('session.cookie_samesite', 'Lax');
-    @ini_set('session.gc_probability', '1');
-    @ini_set('session.gc_divisor', '100');
 }
+
+/*
+ * NOTE: Session configuration has been moved to:
+ * 1. .user.ini files (for PHP-FPM/CGI modes)
+ * 2. public/index.php (early initialization before CI4 boot)
+ *
+ * DO NOT use ini_set() for session configuration here because:
+ * - ini_set() cannot change session settings when a session is already active
+ * - This causes errors in shared hosting where session.auto_start might be enabled
+ * - CodeIgniter manages sessions through its Session Handler instead
+ */
 
 /*
  |--------------------------------------------------------------------------
