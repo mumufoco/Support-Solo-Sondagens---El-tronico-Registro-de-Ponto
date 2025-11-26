@@ -36,7 +36,7 @@ class Services extends BaseService
             return static::getSharedInstance('session', $config);
         }
 
-        $config ??= config('Session');
+        $config ??= new \Config\Session();
 
         $logger = static::logger();
 
