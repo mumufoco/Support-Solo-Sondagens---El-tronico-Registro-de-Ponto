@@ -9,6 +9,10 @@ use CodeIgniter\Router\RouteCollection;
 // Default route
 $routes->get('/', 'Home::index');
 
+// TEST ROUTE - Simple controller to verify CodeIgniter is working
+$routes->get('test', 'TestController::index');
+$routes->get('test/view', 'TestController::view');
+
 /*
  * --------------------------------------------------------------------
  * Health Check Routes (Public - for monitoring/CI/CD)
