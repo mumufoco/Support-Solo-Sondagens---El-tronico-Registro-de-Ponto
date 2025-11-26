@@ -36,6 +36,6 @@ class Home extends BaseController
         }
 
         // Not authenticated - redirect to login
-        return redirect()->to('/auth/login');
+        return redirect()->to('/login');
     }
 }
