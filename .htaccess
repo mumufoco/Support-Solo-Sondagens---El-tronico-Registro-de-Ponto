@@ -1,0 +1,43 @@
+# CodeIgniter 4 - Root .htaccess
+# Redirect all requests to the public folder
+
+# Disable directory browsing
+Options -Indexes
+
+# Follow symbolic links
+Options +FollowSymLinks
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Redirect to public folder if not already there
+    # Skip if the request is for the public folder itself
+    RewriteCond %{REQUEST_URI} !^/public/
+
+    # Skip if file exists in root (like robots.txt, favicon.ico)
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # Redirect everything to public folder
+    RewriteRule ^(.*)$ public/$1 [L]
+
+    # If accessing root, redirect to public/index.php
+    RewriteCond %{REQUEST_URI} ^/$
+    RewriteRule ^(.*)$ public/index.php [L]
+</IfModule>
+
+# Protect sensitive files and directories
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Deny access to configuration and composer files
+<FilesMatch "(^composer\.|^phpunit\.|^\.env|^\.git|^\.user\.ini|^php\.ini)">
+    Require all denied
+</FilesMatch>
+
+# Deny access to sensitive directories
+<DirectoryMatch "(^|/)(\.|writable|vendor|app|system|config|tests|docker)">
+    Require all denied
+</DirectoryMatch>
