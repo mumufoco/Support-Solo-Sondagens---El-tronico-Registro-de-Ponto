@@ -5,7 +5,7 @@ namespace Config;
 use CodeIgniter\Database\Config;
 
 /**
- * Define APPPATH and ENVIRONMENT if not already defined (for standalone script usage)
+ * Define APPPATH, ENVIRONMENT and env() if not already defined (for standalone script usage)
  * This allows Database.php to be loaded outside of CI4 boot process
  */
 if (!defined('APPPATH')) {
@@ -25,6 +25,60 @@ if (!defined('ENVIRONMENT')) {
     }
 
     define('ENVIRONMENT', $environment);
+}
+
+// Define env() function if not already defined (for standalone script usage)
+if (!function_exists('env')) {
+    /**
+     * Retrieve environment variable value with fallback
+     * This is a simplified version of CodeIgniter's env() function
+     *
+     * @param string $key     Environment variable key
+     * @param mixed  $default Default value if not found
+     * @return mixed
+     */
+    function env(string $key, $default = null)
+    {
+        // Try to get from actual environment variables first
+        $value = getenv($key);
+        if ($value !== false) {
+            return $value;
+        }
+
+        // Try to load from .env file
+        static $envCache = null;
+
+        if ($envCache === null) {
+            $envCache = [];
+            $envFile = realpath(__DIR__ . '/../../.env');
+
+            if ($envFile && file_exists($envFile)) {
+                $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+                foreach ($lines as $line) {
+                    // Skip comments
+                    if (strpos(trim($line), '#') === 0) {
+                        continue;
+                    }
+
+                    // Parse KEY=VALUE format
+                    if (strpos($line, '=') !== false) {
+                        list($envKey, $envValue) = explode('=', $line, 2);
+                        $envKey = trim($envKey);
+                        $envValue = trim($envValue);
+
+                        // Remove quotes from value
+                        $envValue = trim($envValue, '"\'');
+
+                        $envCache[$envKey] = $envValue;
+                    }
+                }
+            }
+        }
+
+        // Return value from cache or default
+        return $envCache[$key] ?? $default;
+    }
 }
 
 class Database extends Config
