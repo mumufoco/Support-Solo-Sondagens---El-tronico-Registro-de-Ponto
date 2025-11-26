@@ -5,11 +5,26 @@ namespace Config;
 use CodeIgniter\Database\Config;
 
 /**
- * Define APPPATH if not already defined (for standalone script usage)
+ * Define APPPATH and ENVIRONMENT if not already defined (for standalone script usage)
  * This allows Database.php to be loaded outside of CI4 boot process
  */
 if (!defined('APPPATH')) {
     define('APPPATH', realpath(__DIR__ . '/../') . DIRECTORY_SEPARATOR);
+}
+
+if (!defined('ENVIRONMENT')) {
+    // Try to load from .env file
+    $envFile = realpath(__DIR__ . '/../../.env');
+    $environment = 'production'; // Default to production for safety
+
+    if ($envFile && file_exists($envFile)) {
+        $envContent = file_get_contents($envFile);
+        if (preg_match('/^\s*CI_ENVIRONMENT\s*=\s*["\']?(\w+)["\']?\s*$/m', $envContent, $matches)) {
+            $environment = $matches[1];
+        }
+    }
+
+    define('ENVIRONMENT', $environment);
 }
 
 class Database extends Config
