@@ -28,18 +28,25 @@ class SafeSession extends Session
         // Use the config passed to constructor instead of config() helper
         $config = $this->config;
 
+        // CRITICAL: If headers already sent (due to PHP Startup errors),
+        // we CANNOT configure sessions at all. Skip all configuration.
+        if (headers_sent($file, $line)) {
+            // Log the issue for debugging
+            if (function_exists('log_message')) {
+                log_message('warning', "SafeSession: Headers already sent in {$file} on line {$line}. Skipping session configuration.");
+            }
+            return; // Abort session configuration
+        }
+
         // Set cookie parameters directly without ini_set()
         // These are applied when session_start() is called
         if (session_status() === PHP_SESSION_NONE) {
-            // Set session name ONLY if headers haven't been sent yet
-            // This prevents "session_name(): Session name cannot be changed after headers have already been sent" error
-            if (!headers_sent() && !empty($config->cookieName)) {
+            // Set session name
+            if (!empty($config->cookieName)) {
                 session_name($config->cookieName);
             }
 
             // Configure session cookie parameters
-            // Note: session_set_cookie_params() can be called even after headers are sent
-            // because it only affects the NEXT session_start() call
             $cookieParams = [
                 'lifetime' => $config->expiration,
                 'path' => $config->cookiePath ?? '/',
