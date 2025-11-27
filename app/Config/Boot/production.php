@@ -13,9 +13,10 @@ error_reporting(E_ALL & ~E_DEPRECATED);
 // If you want to suppress more types of errors.
 // error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED & ~E_STRICT & ~E_USER_NOTICE & ~E_USER_DEPRECATED);
 
-// Safely set display_errors if ini_set is available
+// TEMPORARILY ENABLE display_errors for debugging blank page
 if (function_exists('ini_set')) {
-    @ini_set('display_errors', '0');
+    @ini_set('display_errors', '1');  // ENABLED for debugging
+    @ini_set('display_startup_errors', '1');
 }
 
 /*
