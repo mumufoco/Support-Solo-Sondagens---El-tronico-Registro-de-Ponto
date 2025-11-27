@@ -25,8 +25,8 @@ class SafeSession extends Session
      */
     protected function configure(): void
     {
-        // Get session configuration
-        $config = config('Session');
+        // Use the config passed to constructor instead of config() helper
+        $config = $this->config;
 
         // Set cookie parameters directly without ini_set()
         // These are applied when session_start() is called
@@ -51,7 +51,7 @@ class SafeSession extends Session
         }
 
         // Log that we're using safe session configuration
-        if (ENVIRONMENT === 'development') {
+        if (defined('ENVIRONMENT') && ENVIRONMENT === 'development') {
             log_message('info', 'SafeSession: Using safe session configuration (no ini_set calls)');
         }
     }

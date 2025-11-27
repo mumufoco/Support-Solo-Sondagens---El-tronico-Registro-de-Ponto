@@ -42,8 +42,8 @@ class Services extends BaseService
         $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
         $driver = new \App\Session\Handlers\SafeFileHandler($config, $ipAddress);
 
-        // Create session without extra dependencies
-        $session = new \CodeIgniter\Session\Session($driver, $config);
+        // Create SafeSession (NOT regular Session) to avoid ini_set()
+        $session = new \App\Libraries\SafeSession($driver, $config);
         $session->start();
 
         return $session;
