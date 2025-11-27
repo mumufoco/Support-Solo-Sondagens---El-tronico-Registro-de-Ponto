@@ -1,5 +1,19 @@
 <?php
 
+/*
+ *---------------------------------------------------------------
+ * CRITICAL FIX: CAPTURE PHP STARTUP ERRORS
+ *---------------------------------------------------------------
+ * On some shared hosting, the server's php.ini has invalid settings
+ * like session.gc_divisor = 0, which causes PHP Startup warnings
+ * at "line 0" BEFORE any code executes. These warnings send HTTP
+ * headers, preventing CodeIgniter from configuring sessions later.
+ *
+ * We start output buffering IMMEDIATELY to capture these startup
+ * errors and prevent them from sending headers prematurely.
+ */
+ob_start();
+
 /**
  * Sistema de Ponto Eletrônico Brasileiro
  *
@@ -74,6 +88,33 @@ if (session_status() === PHP_SESSION_NONE) {
     // Restore original error reporting
     error_reporting($originalErrorReporting);
 }
+
+/*
+ *---------------------------------------------------------------
+ * DISCARD PHP STARTUP ERRORS FROM BUFFER
+ *---------------------------------------------------------------
+ * If there were any PHP Startup warnings (like session.gc_divisor),
+ * they are now captured in the output buffer. We need to clean
+ * the buffer to prevent those errors from sending headers.
+ *
+ * However, we keep output buffering active for CodeIgniter's use.
+ */
+$startupErrors = ob_get_clean(); // Get and clear the buffer
+
+// Log startup errors if any (for debugging)
+if (!empty(trim($startupErrors))) {
+    // Ensure writable/logs directory exists
+    $logDir = dirname(__DIR__) . '/writable/logs';
+    if (is_dir($logDir) && is_writable($logDir)) {
+        $logFile = $logDir . '/php-startup-errors.log';
+        $timestamp = date('Y-m-d H:i:s');
+        $logEntry = "[$timestamp] PHP Startup Errors Captured:\n$startupErrors\n\n";
+        @file_put_contents($logFile, $logEntry, FILE_APPEND);
+    }
+}
+
+// Restart output buffering for CodeIgniter
+ob_start();
 
 /*
  *---------------------------------------------------------------

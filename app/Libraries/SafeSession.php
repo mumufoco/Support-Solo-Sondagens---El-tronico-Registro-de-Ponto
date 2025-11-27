@@ -31,12 +31,15 @@ class SafeSession extends Session
         // Set cookie parameters directly without ini_set()
         // These are applied when session_start() is called
         if (session_status() === PHP_SESSION_NONE) {
-            // Set session name
-            if (!empty($config->cookieName)) {
+            // Set session name ONLY if headers haven't been sent yet
+            // This prevents "session_name(): Session name cannot be changed after headers have already been sent" error
+            if (!headers_sent() && !empty($config->cookieName)) {
                 session_name($config->cookieName);
             }
 
             // Configure session cookie parameters
+            // Note: session_set_cookie_params() can be called even after headers are sent
+            // because it only affects the NEXT session_start() call
             $cookieParams = [
                 'lifetime' => $config->expiration,
                 'path' => $config->cookiePath ?? '/',
@@ -46,7 +49,6 @@ class SafeSession extends Session
                 'samesite' => $config->cookieSameSite ?? 'Lax'
             ];
 
-            // Set cookie parameters (this works even after headers are sent)
             session_set_cookie_params($cookieParams);
         }
 
