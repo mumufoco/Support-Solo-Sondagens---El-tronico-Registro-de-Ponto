@@ -19,24 +19,33 @@ use CodeIgniter\Config\BaseService;
  */
 class Services extends BaseService
 {
-    /*
-     * --------------------------------------------------------------------
-     * Session Service - REMOVED
-     * --------------------------------------------------------------------
+    /**
+     * The Session class - Override to FORCE SafeFileHandler
      *
-     * The custom session() override has been removed because it causes
-     * circular dependency issues during early boot:
+     * This override is necessary because the default service ignores
+     * the driver setting in Session.php and uses FileHandler instead.
      *
-     * - session() calls logger()
-     * - logger() calls config() helper
-     * - config() helper doesn't exist until boot is complete
-     * - Result: Fatal error before app can start
-     *
-     * Session configuration is now handled through:
-     * - app/Config/Session.php (sets SafeFileHandler as default driver)
-     * - CodeIgniter's default session service (uses driver from config)
-     *
-     * SafeFileHandler is automatically used because it's set as the
-     * default driver in Session.php line 29.
+     * We FORCE SafeFileHandler to avoid ini_set() calls that fail.
      */
+    public static function session(?\Config\Session $config = null, bool $getShared = true)
+    {
+        if ($getShared) {
+            return static::getSharedInstance('session', $config);
+        }
+
+        // Get config
+        if ($config === null) {
+            $config = new \Config\Session();
+        }
+
+        // FORCE SafeFileHandler - no logger, no other dependencies
+        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        $driver = new \App\Session\Handlers\SafeFileHandler($config, $ipAddress);
+
+        // Create session without extra dependencies
+        $session = new \CodeIgniter\Session\Session($driver, $config);
+        $session->start();
+
+        return $session;
+    }
 }
