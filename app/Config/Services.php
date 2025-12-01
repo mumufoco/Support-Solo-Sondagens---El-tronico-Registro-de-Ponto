@@ -19,33 +19,9 @@ use CodeIgniter\Config\BaseService;
  */
 class Services extends BaseService
 {
-    /**
-     * The Session class - Override to FORCE SafeFileHandler
-     *
-     * This override is necessary because the default service ignores
-     * the driver setting in Session.php and uses FileHandler instead.
-     *
-     * We FORCE SafeFileHandler to avoid ini_set() calls that fail.
+    /*
+     * VPS Configuration:
+     * No custom session override needed - php.ini is configured correctly.
+     * CodeIgniter's default Session service works perfectly now!
      */
-    public static function session(?\Config\Session $config = null, bool $getShared = true)
-    {
-        if ($getShared) {
-            return static::getSharedInstance('session', $config);
-        }
-
-        // Get config
-        if ($config === null) {
-            $config = new \Config\Session();
-        }
-
-        // FORCE SafeFileHandler - no logger, no other dependencies
-        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-        $driver = new \App\Session\Handlers\SafeFileHandler($config, $ipAddress);
-
-        // Create SafeSession (NOT regular Session) to avoid ini_set()
-        $session = new \App\Libraries\SafeSession($driver, $config);
-        $session->start();
-
-        return $session;
-    }
 }

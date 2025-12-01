@@ -1,19 +1,5 @@
 <?php
 
-/*
- *---------------------------------------------------------------
- * CRITICAL FIX: CAPTURE PHP STARTUP ERRORS
- *---------------------------------------------------------------
- * On some shared hosting, the server's php.ini has invalid settings
- * like session.gc_divisor = 0, which causes PHP Startup warnings
- * at "line 0" BEFORE any code executes. These warnings send HTTP
- * headers, preventing CodeIgniter from configuring sessions later.
- *
- * We start output buffering IMMEDIATELY to capture these startup
- * errors and prevent them from sending headers prematurely.
- */
-ob_start();
-
 /**
  * Sistema de Ponto Eletrônico Brasileiro
  *
@@ -51,106 +37,6 @@ if (version_compare(PHP_VERSION, $minPhpVersion, '<')) {
 
 /*
  *---------------------------------------------------------------
- * FIX SESSION CONFIGURATION (BEFORE ANYTHING ELSE)
- *---------------------------------------------------------------
- * This fixes "session.gc_divisor must be greater than 0" error
- * that occurs in shared hosting environments where PHP is
- * misconfigured. We configure sessions via PHP code instead
- * of relying on .user.ini which may be ignored or overridden.
- */
-
-// Only configure if session hasn't started yet
-if (session_status() === PHP_SESSION_NONE) {
-    // Disable warnings temporarily to suppress ini_set errors
-    $originalErrorReporting = error_reporting();
-    error_reporting(E_ALL & ~E_WARNING & ~E_NOTICE);
-
-    // Try to fix session configuration via ini_set (may fail on shared hosting)
-    if (function_exists('ini_set')) {
-        // Session garbage collection - FIX THE MAIN ERROR
-        @ini_set('session.gc_probability', '1');
-        @ini_set('session.gc_divisor', '100');  // MUST be > 0
-        @ini_set('session.gc_maxlifetime', '7200');
-
-        // Session security
-        @ini_set('session.use_strict_mode', '1');
-        @ini_set('session.use_only_cookies', '1');
-        @ini_set('session.cookie_httponly', '1');
-        @ini_set('session.cookie_samesite', 'Lax');
-
-        // Session save path
-        $sessionPath = dirname(__DIR__) . '/writable/session';
-        if (is_dir($sessionPath) && is_writable($sessionPath)) {
-            @ini_set('session.save_path', $sessionPath);
-        }
-    }
-
-    // Restore original error reporting
-    error_reporting($originalErrorReporting);
-}
-
-/*
- *---------------------------------------------------------------
- * DISCARD PHP STARTUP ERRORS FROM BUFFER
- *---------------------------------------------------------------
- * If there were any PHP Startup warnings (like session.gc_divisor),
- * they are now captured in the output buffer. We need to clean
- * the buffer to prevent those errors from sending headers.
- *
- * However, we keep output buffering active for CodeIgniter's use.
- */
-$startupErrors = ob_get_clean(); // Get and clear the buffer
-
-// Log startup errors if any (for debugging)
-if (!empty(trim($startupErrors))) {
-    // Ensure writable/logs directory exists
-    $logDir = dirname(__DIR__) . '/writable/logs';
-    if (is_dir($logDir) && is_writable($logDir)) {
-        $logFile = $logDir . '/php-startup-errors.log';
-        $timestamp = date('Y-m-d H:i:s');
-        $logEntry = "[$timestamp] PHP Startup Errors Captured:\n$startupErrors\n\n";
-        @file_put_contents($logFile, $logEntry, FILE_APPEND);
-    }
-}
-
-// Restart output buffering for CodeIgniter
-ob_start();
-
-/*
- *---------------------------------------------------------------
- * DEFINE ENVIRONMENT CONSTANT EARLY
- *---------------------------------------------------------------
- */
-
-// Define ENVIRONMENT constant before anything else to prevent "Undefined constant" errors
-// This is normally done by Boot.php, but we need it earlier for error handling
-if (!defined('ENVIRONMENT')) {
-    // Try to load from .env file
-    $envFile = __DIR__ . '/../.env';
-    $environment = 'production'; // Default to production for safety
-
-    if (file_exists($envFile)) {
-        $envContent = file_get_contents($envFile);
-        if (preg_match('/^\s*CI_ENVIRONMENT\s*=\s*["\']?(\w+)["\']?\s*$/m', $envContent, $matches)) {
-            $environment = $matches[1];
-        }
-    }
-
-    define('ENVIRONMENT', $environment);
-}
-
-/*
- *---------------------------------------------------------------
- * LOAD PRODUCTION PHP CONFIGURATION
- *---------------------------------------------------------------
- */
-
-// Removed: php-config-production.php has been deleted
-// Session and PHP configuration is now handled by .user.ini
-// This prevents conflicts with CodeIgniter's session management
-
-/*
- *---------------------------------------------------------------
  * SET THE CURRENT DIRECTORY
  *---------------------------------------------------------------
  */
@@ -184,10 +70,6 @@ $paths = new Paths();
 if (is_file(FCPATH . '../vendor/autoload.php')) {
     require FCPATH . '../vendor/autoload.php';
 }
-
-// Removed: bootstrap-exceptions.php has been deleted
-// Exception classes are now properly loaded via Composer autoloader
-// This prevents duplicate loading and potential conflicts
 
 // LOAD THE FRAMEWORK BOOTSTRAP FILE
 require $paths->systemDirectory . '/Boot.php';
