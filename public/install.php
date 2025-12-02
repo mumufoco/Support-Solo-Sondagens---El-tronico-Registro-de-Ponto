@@ -49,6 +49,7 @@ $step = isset($_GET['step']) ? (int)$_GET['step'] : $_SESSION['install']['step']
  * Render HTML header
  */
 function render_header($title = 'Instalação do Sistema') {
+    global $step;
     ?>
     <!DOCTYPE html>
     <html lang="pt-BR">

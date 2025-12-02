@@ -149,14 +149,13 @@ class LoginController extends BaseController
         // Set session data
         $this->session->set($sessionData);
 
-        // CRITICAL: Force immediate write to storage
-        // Without this, data may not persist between requests
-        session_write_close();
+        // IMPORTANT: Let CodeIgniter handle session persistence
+        // DO NOT mix CodeIgniter session methods with native PHP session functions
+        // (session_write_close/session_start) as this causes data loss with SafeFileHandler
 
-        // Restart session for current request to continue using it
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
+        // Mark session as modified to ensure write on shutdown
+        $this->session->markAsFlashdata('_ci_session_modified');
+        $this->session->unmarkFlashdata('_ci_session_modified');
 
         // Log with high level to ensure it's written
         log_message('info', 'Login successful: user_id=' . $user->id . ', role=' . $user->role);
