@@ -39,7 +39,7 @@ class Logger extends BaseConfig
      *
      * @var int|list<int>
      */
-    public $threshold = (ENVIRONMENT === 'production') ? 5 : 9; // Include warnings for auth events
+    public $threshold = (ENVIRONMENT === 'production') ? 7 : 9; // Include info & warnings for auth events
 
     /**
      * --------------------------------------------------------------------------

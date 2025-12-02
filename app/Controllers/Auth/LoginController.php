@@ -130,11 +130,11 @@ class LoginController extends BaseController
         // Clear login attempts
         $this->clearLoginAttempts($email);
 
-        // TEMPORARY DEBUG LOG
-        log_message('debug', 'LoginController: Login successful for user: ' . $user->email);
-        log_message('debug', 'LoginController: User ID=' . $user->id . ', Role=' . $user->role);
+        // CRITICAL FIX: Regenerate session ID BEFORE setting data
+        // This prevents data loss that occurs when regenerate() is called after set()
+        $this->session->regenerate();
 
-        // Create session
+        // Create session data
         $sessionData = [
             'user_id'       => $user->id,
             'user_name'     => $user->name,
@@ -146,17 +146,20 @@ class LoginController extends BaseController
             'employee'      => (array) $user, // Full employee data for compatibility
         ];
 
-        log_message('debug', 'LoginController: Setting session data: ' . json_encode($sessionData));
-
+        // Set session data
         $this->session->set($sessionData);
 
-        log_message('debug', 'LoginController: Session data after set: ' . json_encode($this->session->get()));
+        // CRITICAL: Force immediate write to storage
+        // Without this, data may not persist between requests
+        session_write_close();
 
-        // Regenerate session ID for security
-        log_message('debug', 'LoginController: About to regenerate session ID');
-        $this->session->regenerate();
+        // Restart session for current request to continue using it
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
 
-        log_message('debug', 'LoginController: Session data after regenerate: ' . json_encode($this->session->get()));
+        // Log with high level to ensure it's written
+        log_message('info', 'Login successful: user_id=' . $user->id . ', role=' . $user->role);
 
         // Set remember me cookie if requested
         if ($remember) {
@@ -176,10 +179,6 @@ class LoginController extends BaseController
         );
 
         $this->setSuccess("Bem-vindo(a), {$user->name}!");
-
-        // TEMPORARY DEBUG LOG
-        $redirectUrl = $this->redirectByRole($user->role)->getHeaderLine('Location');
-        log_message('debug', 'LoginController: Redirecting to: ' . $redirectUrl);
 
         // Redirect based on role
         return $this->redirectByRole($user->role);

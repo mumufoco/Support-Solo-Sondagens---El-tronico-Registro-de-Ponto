@@ -24,16 +24,9 @@ class AdminFilter implements FilterInterface
     {
         $session = session();
 
-        // TEMPORARY DEBUG LOG
-        log_message('debug', 'AdminFilter: Checking admin access');
-        log_message('debug', 'AdminFilter: Session user_id = ' . ($session->get('user_id') ?? 'NULL'));
-        log_message('debug', 'AdminFilter: Session user_role = ' . ($session->get('user_role') ?? 'NULL'));
-        log_message('debug', 'AdminFilter: Session logged_in = ' . ($session->get('logged_in') ? 'TRUE' : 'FALSE'));
-        log_message('debug', 'AdminFilter: All session data = ' . json_encode($session->get()));
-
         // First check if user is authenticated
         if (!$session->get('user_id')) {
-            log_message('warning', 'AdminFilter: No user_id in session, redirecting to login');
+            log_message('warning', 'AdminFilter: No user_id in session for URL: ' . current_url());
             $session->set('redirect_url', current_url());
             $session->setFlashdata('error', 'Você precisa estar logado para acessar esta página.');
 
@@ -52,8 +45,8 @@ class AdminFilter implements FilterInterface
         // Check if user has admin role (case-insensitive)
         $userRole = $session->get('user_role');
 
-        if (strtolower($userRole) !== 'admin') {
-            log_message('warning', 'AdminFilter: User role is not admin. Role=' . $userRole . ', Redirect to: ' . $this->getDashboardUrl($userRole));
+        if (empty($userRole) || strtolower($userRole) !== 'admin') {
+            log_message('warning', 'AdminFilter: Access denied. user_id=' . $session->get('user_id') . ', role=' . ($userRole ?? 'NULL'));
 
             // Log unauthorized access attempt
             $this->logUnauthorizedAccess($session->get('user_id'), current_url());
@@ -74,8 +67,8 @@ class AdminFilter implements FilterInterface
             return redirect()->to($dashboardUrl);
         }
 
-        log_message('debug', 'AdminFilter: Access granted for admin user');
-        return null; // Allow request to proceed
+        // Access granted
+        return null;
     }
 
     /**
