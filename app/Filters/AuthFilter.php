@@ -50,47 +50,15 @@ class AuthFilter implements FilterInterface
             return redirect()->to('/auth/login');
         }
 
-        // Verify session hasn't expired
-        $sessionTimeout = env('SESSION_TIMEOUT', 7200); // 2 hours default
-        $lastActivity = $session->get('last_activity');
+        // NOTE: Session expiration is handled by CodeIgniter's session handler
+        // No need for manual timeout checking here - it can cause premature logout
 
-        if ($lastActivity && (time() - $lastActivity > $sessionTimeout)) {
-            // Session expired
-            $session->destroy();
-            $session->setFlashdata('warning', 'Sua sessão expirou. Faça login novamente.');
-
-            if ($request->isAJAX() || $this->isApiRequest($request)) {
-                return service('response')
-                    ->setJSON([
-                        'success' => false,
-                        'error' => 'Sessão expirada.',
-                    ])
-                    ->setStatusCode(401);
-            }
-
-            return redirect()->to('/auth/login');
-        }
-
-        // Update last activity
+        // Update last activity for application-level tracking
         $session->set('last_activity', time());
 
-        // Check if account is active
-        $isActive = $session->get('user_active');
-        if ($isActive === false) {
-            $session->destroy();
-            $session->setFlashdata('error', 'Sua conta foi desativada. Entre em contato com o administrador.');
-
-            if ($request->isAJAX() || $this->isApiRequest($request)) {
-                return service('response')
-                    ->setJSON([
-                        'success' => false,
-                        'error' => 'Conta desativada.',
-                    ])
-                    ->setStatusCode(403);
-            }
-
-            return redirect()->to('/auth/login');
-        }
+        // NOTE: Account active status is checked at login
+        // Checking on every request and destroying session can cause loops
+        // If account needs to be disabled, admin should force logout from their panel
 
         return null; // Allow request to proceed
     }

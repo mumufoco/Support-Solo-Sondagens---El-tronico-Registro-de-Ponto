@@ -71,6 +71,33 @@ if (is_file(FCPATH . '../vendor/autoload.php')) {
     require FCPATH . '../vendor/autoload.php';
 }
 
+/*
+ *---------------------------------------------------------------
+ * CRITICAL SESSION CONFIGURATION
+ *---------------------------------------------------------------
+ * MUST be set BEFORE CodeIgniter boots to prevent session mismatch.
+ *
+ * PROBLEM: PHP defaults to session.name='PHPSESSID' and
+ * session.save_path='/var/lib/php/sessions', but CodeIgniter
+ * expects 'ci_session' and 'writable/session'.
+ *
+ * If session is started with wrong config, it cannot be changed later,
+ * causing login loop (session created with one name/path, read with another).
+ */
+if (session_status() === PHP_SESSION_NONE) {
+    // Set session name to match CodeIgniter config
+    session_name('ci_session');
+
+    // Set session save path to CodeIgniter's writable directory
+    $sessionPath = dirname(__DIR__) . '/writable/session';
+    if (!is_dir($sessionPath)) {
+        @mkdir($sessionPath, 0755, true);
+    }
+    if (is_writable($sessionPath)) {
+        session_save_path($sessionPath);
+    }
+}
+
 // LOAD THE FRAMEWORK BOOTSTRAP FILE
 require $paths->systemDirectory . '/Boot.php';
 
