@@ -7,6 +7,9 @@
  * DELETE este arquivo após resolver os problemas!
  */
 
+// Start output buffering BEFORE any output
+ob_start();
+
 // Habilitar TODOS os erros
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
@@ -285,7 +288,7 @@ $checkPaths = [
     'Database Config' => $rootDir . '/app/Config/Database.php',
     'Routes Config' => $rootDir . '/app/Config/Routes.php',
     'Arquivo .env' => $rootDir . '/.env',
-    'System Bootstrap' => $rootDir . '/system/bootstrap.php',
+    'System Boot' => $rootDir . '/system/Boot.php',
     'writable/cache' => $rootDir . '/writable/cache',
     'writable/logs' => $rootDir . '/writable/logs',
     'writable/session' => $rootDir . '/writable/session',
@@ -484,3 +487,7 @@ echo "</table>";
 </div>
 </body>
 </html>
+<?php
+// Flush output buffer
+ob_end_flush();
+?>
