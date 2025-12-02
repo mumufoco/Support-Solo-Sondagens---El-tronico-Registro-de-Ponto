@@ -1,7 +1,7 @@
 <?php
 /**
  * TESTE COMPLETO DE LOGIN - Vistoria Profunda
- * Simula login e rastreia TUDO
+ * Diagnóstico sem bootstrap completo do CI4
  * DELETE após resolver!
  */
 
@@ -9,20 +9,29 @@
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
-// Carregar CodeIgniter
+// Definir FCPATH
 define('FCPATH', __DIR__ . DIRECTORY_SEPARATOR);
-require FCPATH . '../app/Config/Paths.php';
-$paths = new Config\Paths();
+
+// Carregar apenas o que precisamos
 require FCPATH . '../vendor/autoload.php';
-require $paths->systemDirectory . '/Boot.php';
 
-// Iniciar CodeIgniter
-$app = \CodeIgniter\Config\Services::codeigniter();
-$app->initialize();
-
-// Criar request simulado
-$request = \Config\Services::request();
-$session = \Config\Services::session();
+// Carregar configuração do banco manualmente
+$envFile = FCPATH . '../.env';
+if (file_exists($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(trim($line), '#') === 0) continue;
+        if (strpos($line, '=') !== false) {
+            list($key, $value) = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim($value);
+            if (!isset($_ENV[$key])) {
+                $_ENV[$key] = $value;
+                putenv("$key=$value");
+            }
+        }
+    }
+}
 
 ?>
 <!DOCTYPE html>
@@ -33,15 +42,16 @@ $session = \Config\Services::session();
     <style>
         body { font-family: monospace; padding: 20px; background: #f5f5f5; }
         .section { background: white; padding: 20px; margin: 20px 0; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .success { background: #d4edda; border-left: 4px solid #28a745; }
-        .error { background: #f8d7da; border-left: 4px solid #dc3545; }
-        .warning { background: #fff3cd; border-left: 4px solid #ffc107; }
-        .info { background: #d1ecf1; border-left: 4px solid #0c5460; }
+        .success { background: #d4edda; border-left: 4px solid #28a745; padding: 10px; margin: 10px 0; }
+        .error { background: #f8d7da; border-left: 4px solid #dc3545; padding: 10px; margin: 10px 0; }
+        .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px; margin: 10px 0; }
+        .info { background: #d1ecf1; border-left: 4px solid #0c5460; padding: 10px; margin: 10px 0; }
         pre { background: #f8f9fa; padding: 10px; overflow-x: auto; border-radius: 3px; }
         h2 { margin-top: 0; color: #333; }
-        table { width: 100%; border-collapse: collapse; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
         th, td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
         th { background: #007bff; color: white; }
+        .code { background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
     </style>
 </head>
 <body>
@@ -51,228 +61,146 @@ $session = \Config\Services::session();
 <?php
 
 // ==================================================
-// TESTE 1: Verificar Banco de Dados
+// TESTE 1: Verificar Variáveis de Ambiente
 // ==================================================
 echo "<div class='section'>";
-echo "<h2>1️⃣ Verificação do Banco de Dados</h2>";
+echo "<h2>1️⃣ Verificação de Variáveis de Ambiente</h2>";
 
-try {
-    $db = \Config\Database::connect();
-    echo "<div class='success'>✅ Conexão com banco estabelecida</div>";
-
-    // Buscar usuário admin
-    $query = $db->query("SELECT * FROM employees WHERE role = 'admin' AND active = 1 LIMIT 1");
-    $admin = $query->getRow();
-
-    if ($admin) {
-        echo "<div class='success'>✅ Usuário admin encontrado</div>";
-        echo "<table>";
-        echo "<tr><th>Campo</th><th>Valor</th></tr>";
-        echo "<tr><td>ID</td><td>{$admin->id}</td></tr>";
-        echo "<tr><td>Nome</td><td>{$admin->name}</td></tr>";
-        echo "<tr><td>Email</td><td>{$admin->email}</td></tr>";
-        echo "<tr><td>Role</td><td><strong>{$admin->role}</strong></td></tr>";
-        echo "<tr><td>Active</td><td>" . ($admin->active ? '✅ Sim' : '❌ Não') . "</td></tr>";
-        echo "</table>";
-    } else {
-        echo "<div class='error'>❌ Nenhum usuário admin ativo encontrado!</div>";
-        exit;
-    }
-
-} catch (\Exception $e) {
-    echo "<div class='error'>❌ Erro no banco: " . $e->getMessage() . "</div>";
-    exit;
-}
-
-echo "</div>";
-
-// ==================================================
-// TESTE 2: Simular Login
-// ==================================================
-echo "<div class='section'>";
-echo "<h2>2️⃣ Simulação de Login</h2>";
-
-// Criar sessão simulada
-$sessionData = [
-    'user_id'       => $admin->id,
-    'user_name'     => $admin->name,
-    'user_email'    => $admin->email,
-    'user_role'     => $admin->role,
-    'user_active'   => (bool) $admin->active,
-    'last_activity' => time(),
-    'logged_in'     => true,
+$requiredEnvVars = [
+    'database.default.hostname',
+    'database.default.database',
+    'database.default.username',
+    'database.default.password',
+    'CI_ENVIRONMENT'
 ];
 
-foreach ($sessionData as $key => $value) {
-    $session->set($key, $value);
-}
-
-echo "<div class='success'>✅ Sessão criada</div>";
 echo "<table>";
-echo "<tr><th>Chave</th><th>Valor</th></tr>";
-foreach ($sessionData as $key => $value) {
-    $displayValue = is_bool($value) ? ($value ? 'true' : 'false') : $value;
-    echo "<tr><td>$key</td><td>$displayValue</td></tr>";
+echo "<tr><th>Variável</th><th>Status</th></tr>";
+foreach ($requiredEnvVars as $var) {
+    $value = getenv($var);
+    $status = $value ? '✅ Definida' : '❌ Ausente';
+    echo "<tr><td class='code'>$var</td><td>$status</td></tr>";
 }
 echo "</table>";
 
 echo "</div>";
 
 // ==================================================
-// TESTE 3: Verificar Filtros
+// TESTE 2: Verificar Banco de Dados
 // ==================================================
 echo "<div class='section'>";
-echo "<h2>3️⃣ Teste dos Filtros de Autenticação</h2>";
-
-// Testar AuthFilter
-echo "<h3>AuthFilter:</h3>";
-$authFilter = new \App\Filters\AuthFilter();
+echo "<h2>2️⃣ Verificação do Banco de Dados</h2>";
 
 try {
-    $mockRequest = \Config\Services::request();
-    $result = $authFilter->before($mockRequest);
+    $host = getenv('database.default.hostname') ?: 'localhost';
+    $database = getenv('database.default.database');
+    $username = getenv('database.default.username');
+    $password = getenv('database.default.password');
 
-    if ($result === null) {
-        echo "<div class='success'>✅ AuthFilter PASSOU - Usuário autenticado</div>";
+    if (!$database || !$username) {
+        echo "<div class='error'>❌ Credenciais do banco não encontradas no .env</div>";
     } else {
-        echo "<div class='error'>❌ AuthFilter BLOQUEOU - Redirect para: " . $result->getHeaderLine('Location') . "</div>";
-    }
-} catch (\Exception $e) {
-    echo "<div class='error'>❌ Erro no AuthFilter: " . $e->getMessage() . "</div>";
-}
+        $dsn = "mysql:host=$host;dbname=$database;charset=utf8mb4";
+        $pdo = new PDO($dsn, $username, $password, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ
+        ]);
 
-// Testar AdminFilter
-echo "<h3>AdminFilter:</h3>";
-$adminFilter = new \App\Filters\AdminFilter();
+        echo "<div class='success'>✅ Conexão com banco estabelecida</div>";
 
-try {
-    $mockRequest = \Config\Services::request();
-    $result = $adminFilter->before($mockRequest);
+        // Buscar usuário admin
+        $stmt = $pdo->prepare("SELECT * FROM employees WHERE role = 'admin' AND active = 1 LIMIT 1");
+        $stmt->execute();
+        $admin = $stmt->fetch();
 
-    if ($result === null) {
-        echo "<div class='success'>✅ AdminFilter PASSOU - Usuário é admin</div>";
-    } else {
-        echo "<div class='error'>❌ AdminFilter BLOQUEOU - Redirect para: ";
-        if (method_exists($result, 'getHeaderLine')) {
-            echo $result->getHeaderLine('Location');
+        if ($admin) {
+            echo "<div class='success'>✅ Usuário admin encontrado</div>";
+            echo "<table>";
+            echo "<tr><th>Campo</th><th>Valor</th></tr>";
+            echo "<tr><td>ID</td><td>{$admin->id}</td></tr>";
+            echo "<tr><td>Nome</td><td>{$admin->name}</td></tr>";
+            echo "<tr><td>Email</td><td>{$admin->email}</td></tr>";
+            echo "<tr><td>Role</td><td><strong>{$admin->role}</strong></td></tr>";
+            echo "<tr><td>Active</td><td>" . ($admin->active ? '✅ Sim' : '❌ Não') . "</td></tr>";
+            echo "</table>";
+
+            // Guardar para testes posteriores
+            $GLOBALS['test_admin'] = $admin;
         } else {
-            echo "(redirect detectado)";
+            echo "<div class='error'>❌ Nenhum usuário admin ativo encontrado!</div>";
         }
-        echo "</div>";
-
-        echo "<div class='warning'>";
-        echo "<strong>Diagnóstico:</strong><br>";
-        echo "user_role na sessão: <code>" . $session->get('user_role') . "</code><br>";
-        echo "strtolower(user_role): <code>" . strtolower($session->get('user_role')) . "</code><br>";
-        echo "Comparação: strtolower('" . $session->get('user_role') . "') !== 'admin' = " .
-             (strtolower($session->get('user_role')) !== 'admin' ? 'TRUE (BLOQUEIA!)' : 'FALSE (PASSA)');
-        echo "</div>";
     }
-} catch (\Exception $e) {
-    echo "<div class='error'>❌ Erro no AdminFilter: " . $e->getMessage() . "</div>";
+
+} catch (PDOException $e) {
+    echo "<div class='error'>❌ Erro no banco: " . htmlspecialchars($e->getMessage()) . "</div>";
 }
 
 echo "</div>";
 
 // ==================================================
-// TESTE 4: Verificar DashboardController
+// TESTE 3: Verificar Sessão Atual
 // ==================================================
 echo "<div class='section'>";
-echo "<h2>4️⃣ Teste do DashboardController</h2>";
+echo "<h2>3️⃣ Verificação de Sessão</h2>";
 
-try {
-    // Verificar se o método admin() existe
-    if (method_exists(\App\Controllers\Dashboard\DashboardController::class, 'admin')) {
-        echo "<div class='success'>✅ Método admin() existe</div>";
-
-        // Tentar instanciar (sem executar)
-        echo "<div class='info'>";
-        echo "<strong>Classe:</strong> App\Controllers\Dashboard\DashboardController<br>";
-        echo "<strong>Método:</strong> admin()<br>";
-        echo "</div>";
-
-    } else {
-        echo "<div class='error'>❌ Método admin() NÃO EXISTE!</div>";
-    }
-
-} catch (\Exception $e) {
-    echo "<div class='error'>❌ Erro: " . $e->getMessage() . "</div>";
+// Tentar iniciar sessão
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
 }
-
-echo "</div>";
-
-// ==================================================
-// TESTE 5: Testar Redirect Real
-// ==================================================
-echo "<div class='section'>";
-echo "<h2>5️⃣ Teste de Redirect Real</h2>";
-
-echo "<p>Simulando redirect após login para: <code>/dashboard/admin</code></p>";
-
-// Usar curl para testar redirect
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, 'https://ponto.supportsondagens.com.br/dashboard/admin');
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HEADER, true);
-curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-curl_setopt($ch, CURLOPT_COOKIE, session_name() . '=' . session_id()); // Enviar cookie de sessão
-
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-$headers = substr($response, 0, $headerSize);
-
-curl_close($ch);
 
 echo "<table>";
 echo "<tr><th>Item</th><th>Valor</th></tr>";
-echo "<tr><td>HTTP Code</td><td><strong>$httpCode</strong></td></tr>";
-
-if ($httpCode >= 300 && $httpCode < 400) {
-    if (preg_match('/Location:\s*(.+)/i', $headers, $matches)) {
-        $location = trim($matches[1]);
-        echo "<tr><td>Redirect Para</td><td class='error'>$location</td></tr>";
-
-        if (strpos($location, '/auth/login') !== false) {
-            echo "<tr><td colspan='2' class='error'><strong>❌ PROBLEMA: Redirecting para LOGIN!</strong></td></tr>";
-        } elseif (strpos($location, '/dashboard/admin') !== false) {
-            echo "<tr><td colspan='2' class='error'><strong>❌ PROBLEMA: LOOP para /dashboard/admin!</strong></td></tr>";
-        }
-    }
-} elseif ($httpCode == 200) {
-    echo "<tr><td colspan='2' class='success'>✅ Página carregou com sucesso!</td></tr>";
-}
-
+echo "<tr><td>Session Status</td><td>" . (session_status() === PHP_SESSION_ACTIVE ? '✅ Ativa' : '❌ Inativa') . "</td></tr>";
+echo "<tr><td>Session ID</td><td>" . session_id() . "</td></tr>";
+echo "<tr><td>Session Name</td><td>" . session_name() . "</td></tr>";
+echo "<tr><td>Session Save Path</td><td>" . session_save_path() . "</td></tr>";
 echo "</table>";
+
+if (!empty($_SESSION)) {
+    echo "<div class='info'>";
+    echo "<strong>Dados na Sessão:</strong>";
+    echo "<pre>" . print_r($_SESSION, true) . "</pre>";
+    echo "</div>";
+} else {
+    echo "<div class='warning'>⚠️ Sessão vazia (esperado em teste direto)</div>";
+}
 
 echo "</div>";
 
 // ==================================================
-// TESTE 6: Verificar Configurações de Sessão
+// TESTE 4: Verificar Arquivos de Filtro
 // ==================================================
 echo "<div class='section'>";
-echo "<h2>6️⃣ Configurações de Sessão do Servidor</h2>";
+echo "<h2>4️⃣ Verificação dos Arquivos de Filtro</h2>";
 
-echo "<table>";
-echo "<tr><th>Configuração</th><th>Valor</th><th>Status</th></tr>";
-
-$sessionConfigs = [
-    'session.save_path' => ini_get('session.save_path'),
-    'session.gc_divisor' => ini_get('session.gc_divisor'),
-    'session.cookie_domain' => ini_get('session.cookie_domain'),
-    'session.cookie_secure' => ini_get('session.cookie_secure'),
+$filterFiles = [
+    'AuthFilter' => FCPATH . '../app/Filters/AuthFilter.php',
+    'AdminFilter' => FCPATH . '../app/Filters/AdminFilter.php'
 ];
 
-foreach ($sessionConfigs as $key => $value) {
-    $status = '';
-    if ($key === 'session.gc_divisor' && $value == 0) {
-        $status = '❌ ERRO';
-    } elseif ($key === 'session.gc_divisor' && $value > 0) {
-        $status = '✅ OK';
-    }
+echo "<table>";
+echo "<tr><th>Filtro</th><th>Status</th><th>Última Modificação</th></tr>";
 
-    echo "<tr><td>$key</td><td>$value</td><td>$status</td></tr>";
+foreach ($filterFiles as $name => $path) {
+    if (file_exists($path)) {
+        $mtime = filemtime($path);
+        $modified = date('Y-m-d H:i:s', $mtime);
+        echo "<tr><td class='code'>$name</td><td>✅ Existe</td><td>$modified</td></tr>";
+
+        // Ler e mostrar snippet do filtro
+        $content = file_get_contents($path);
+
+        // Extrair a lógica de verificação do AdminFilter
+        if ($name === 'AdminFilter' && preg_match('/function before.*?\{(.*?)\n    \}/s', $content, $matches)) {
+            echo "<tr><td colspan='3'>";
+            echo "<details><summary>Ver lógica do AdminFilter</summary>";
+            echo "<pre>" . htmlspecialchars(trim($matches[1])) . "</pre>";
+            echo "</details>";
+            echo "</td></tr>";
+        }
+    } else {
+        echo "<tr><td class='code'>$name</td><td>❌ Não encontrado</td><td>-</td></tr>";
+    }
 }
 
 echo "</table>";
@@ -280,30 +208,167 @@ echo "</table>";
 echo "</div>";
 
 // ==================================================
-// TESTE 7: Logs Recentes
+// TESTE 5: Verificar DashboardController
 // ==================================================
 echo "<div class='section'>";
-echo "<h2>7️⃣ Logs Recentes</h2>";
+echo "<h2>5️⃣ Verificação do DashboardController</h2>";
+
+$controllerFile = FCPATH . '../app/Controllers/Dashboard/DashboardController.php';
+
+if (file_exists($controllerFile)) {
+    echo "<div class='success'>✅ Arquivo existe</div>";
+
+    $content = file_get_contents($controllerFile);
+
+    // Verificar se método admin() existe
+    if (preg_match('/function\s+admin\s*\(/', $content)) {
+        echo "<div class='success'>✅ Método admin() encontrado</div>";
+
+        // Extrair o método
+        if (preg_match('/public\s+function\s+admin\s*\([^)]*\)(.*?)(?=\n\s{4}(public|protected|private|}\s*$))/s', $content, $matches)) {
+            echo "<details><summary>Ver código do método admin()</summary>";
+            echo "<pre>" . htmlspecialchars('public function admin()' . trim($matches[1])) . "</pre>";
+            echo "</details>";
+        }
+    } else {
+        echo "<div class='error'>❌ Método admin() NÃO ENCONTRADO</div>";
+    }
+} else {
+    echo "<div class='error'>❌ DashboardController não encontrado</div>";
+}
+
+echo "</div>";
+
+// ==================================================
+// TESTE 6: Verificar Routes
+// ==================================================
+echo "<div class='section'>";
+echo "<h2>6️⃣ Verificação das Routes</h2>";
+
+$routesFile = FCPATH . '../app/Config/Routes.php';
+
+if (file_exists($routesFile)) {
+    echo "<div class='success'>✅ Arquivo de rotas existe</div>";
+
+    $content = file_get_contents($routesFile);
+
+    // Procurar rotas relacionadas a dashboard
+    if (preg_match_all('/\$routes->.*dashboard.*$/mi', $content, $matches)) {
+        echo "<div class='info'>";
+        echo "<strong>Rotas do Dashboard encontradas:</strong>";
+        echo "<pre>";
+        foreach ($matches[0] as $route) {
+            echo htmlspecialchars($route) . "\n";
+        }
+        echo "</pre>";
+        echo "</div>";
+    } else {
+        echo "<div class='warning'>⚠️ Nenhuma rota explícita de dashboard encontrada (pode estar usando rotas padrão)</div>";
+    }
+} else {
+    echo "<div class='error'>❌ Arquivo de rotas não encontrado</div>";
+}
+
+echo "</div>";
+
+// ==================================================
+// TESTE 7: Teste de Headers e Cookies
+// ==================================================
+echo "<div class='section'>";
+echo "<h2>7️⃣ Informações de Headers e Cookies</h2>";
+
+echo "<table>";
+echo "<tr><th>Item</th><th>Valor</th></tr>";
+echo "<tr><td>Request URI</td><td>" . htmlspecialchars($_SERVER['REQUEST_URI'] ?? 'N/A') . "</td></tr>";
+echo "<tr><td>HTTP Host</td><td>" . htmlspecialchars($_SERVER['HTTP_HOST'] ?? 'N/A') . "</td></tr>";
+echo "<tr><td>Server Software</td><td>" . htmlspecialchars($_SERVER['SERVER_SOFTWARE'] ?? 'N/A') . "</td></tr>";
+echo "<tr><td>PHP Version</td><td>" . PHP_VERSION . "</td></tr>";
+echo "<tr><td>Session Cookie Secure</td><td>" . (ini_get('session.cookie_secure') ? '✅ Sim' : '❌ Não') . "</td></tr>";
+echo "<tr><td>Session Cookie HTTPOnly</td><td>" . (ini_get('session.cookie_httponly') ? '✅ Sim' : '❌ Não') . "</td></tr>";
+echo "</table>";
+
+if (!empty($_COOKIE)) {
+    echo "<div class='info'>";
+    echo "<strong>Cookies Presentes:</strong>";
+    echo "<table>";
+    echo "<tr><th>Nome</th><th>Valor (primeiros 50 chars)</th></tr>";
+    foreach ($_COOKIE as $name => $value) {
+        $displayValue = htmlspecialchars(substr($value, 0, 50));
+        if (strlen($value) > 50) $displayValue .= '...';
+        echo "<tr><td class='code'>$name</td><td>$displayValue</td></tr>";
+    }
+    echo "</table>";
+    echo "</div>";
+}
+
+echo "</div>";
+
+// ==================================================
+// TESTE 8: Logs Recentes
+// ==================================================
+echo "<div class='section'>";
+echo "<h2>8️⃣ Logs Recentes</h2>";
 
 $logDir = dirname(__DIR__) . '/writable/logs';
-$logFiles = glob($logDir . '/log-*.php');
 
-if (!empty($logFiles)) {
-    rsort($logFiles);
-    $latestLog = $logFiles[0];
+if (is_dir($logDir)) {
+    $logFiles = glob($logDir . '/log-*.php');
 
-    echo "<p><strong>Arquivo:</strong> " . basename($latestLog) . "</p>";
+    if (!empty($logFiles)) {
+        rsort($logFiles);
+        $latestLog = $logFiles[0];
 
-    $logContent = file_get_contents($latestLog);
-    $lines = explode("\n", $logContent);
-    $lastLines = array_slice($lines, -30);
+        echo "<p><strong>Arquivo:</strong> <span class='code'>" . basename($latestLog) . "</span></p>";
 
-    echo "<pre style='max-height: 300px; overflow-y: auto;'>";
-    echo htmlspecialchars(implode("\n", $lastLines));
-    echo "</pre>";
+        $logContent = file_get_contents($latestLog);
+        $lines = explode("\n", $logContent);
+        $lastLines = array_slice($lines, -50); // Últimas 50 linhas
+
+        echo "<pre style='max-height: 400px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 15px;'>";
+        echo htmlspecialchars(implode("\n", $lastLines));
+        echo "</pre>";
+    } else {
+        echo "<div class='warning'>⚠️ Nenhum arquivo de log encontrado</div>";
+    }
 } else {
-    echo "<div class='warning'>⚠️ Nenhum log encontrado</div>";
+    echo "<div class='error'>❌ Diretório de logs não encontrado: <span class='code'>$logDir</span></div>";
 }
+
+echo "</div>";
+
+// ==================================================
+// TESTE 9: Verificar Permissões
+// ==================================================
+echo "<div class='section'>";
+echo "<h2>9️⃣ Verificação de Permissões</h2>";
+
+$checkPaths = [
+    'writable/' => dirname(__DIR__) . '/writable',
+    'writable/cache/' => dirname(__DIR__) . '/writable/cache',
+    'writable/logs/' => dirname(__DIR__) . '/writable/logs',
+    'writable/session/' => dirname(__DIR__) . '/writable/session',
+];
+
+echo "<table>";
+echo "<tr><th>Diretório</th><th>Existe</th><th>Gravável</th><th>Permissões</th></tr>";
+
+foreach ($checkPaths as $name => $path) {
+    $exists = file_exists($path);
+    $writable = is_writable($path);
+    $perms = $exists ? substr(sprintf('%o', fileperms($path)), -4) : 'N/A';
+
+    $existsIcon = $exists ? '✅' : '❌';
+    $writableIcon = $writable ? '✅' : '❌';
+
+    echo "<tr>";
+    echo "<td class='code'>$name</td>";
+    echo "<td>$existsIcon</td>";
+    echo "<td>$writableIcon</td>";
+    echo "<td class='code'>$perms</td>";
+    echo "</tr>";
+}
+
+echo "</table>";
 
 echo "</div>";
 
@@ -311,18 +376,31 @@ echo "</div>";
 
 <div class="section info">
     <h2>📊 Resumo do Diagnóstico</h2>
-    <p>Este teste verificou todos os pontos críticos do sistema de login.</p>
-    <p><strong>Se ainda houver loop de redirect, o problema está em:</strong></p>
+    <p>Este teste verificou:</p>
     <ul>
-        <li>❌ AdminFilter bloqueando incorretamente</li>
-        <li>❌ Sessão não sendo persistida entre requests</li>
-        <li>❌ Configuração do cPanel/Apache interferindo</li>
-        <li>❌ Cache do OPcache com código antigo</li>
+        <li>✓ Variáveis de ambiente e configuração</li>
+        <li>✓ Conexão com banco de dados e usuário admin</li>
+        <li>✓ Estado da sessão PHP</li>
+        <li>✓ Existência e conteúdo dos filtros (AuthFilter, AdminFilter)</li>
+        <li>✓ Existência do DashboardController e método admin()</li>
+        <li>✓ Configuração de rotas</li>
+        <li>✓ Headers, cookies e configurações do servidor</li>
+        <li>✓ Logs recentes do sistema</li>
+        <li>✓ Permissões de diretórios</li>
     </ul>
+
+    <p><strong>Se ainda houver problemas de login/redirect:</strong></p>
+    <ol>
+        <li>Verifique se o AdminFilter está usando <span class='code'>strtolower()</span> para comparação de roles</li>
+        <li>Confirme que a sessão está sendo persistida entre requests</li>
+        <li>Verifique se há cache do OPcache que precisa ser limpo</li>
+        <li>Confira os logs acima para mensagens de erro específicas</li>
+    </ol>
 </div>
 
 <hr>
 <p><strong>⚠️ DELETE este arquivo após análise!</strong></p>
+<p><small>Criado em: <?php echo date('Y-m-d H:i:s'); ?></small></p>
 
 </body>
 </html>
