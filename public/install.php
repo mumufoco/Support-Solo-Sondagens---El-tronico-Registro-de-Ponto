@@ -12,6 +12,10 @@
  * Suporta execução via CLI e navegador web
  */
 
+// CRITICAL: Start output buffering IMMEDIATELY to prevent "headers already sent" errors
+// This captures the shebang line when accessed via web browser
+ob_start();
+
 error_reporting(E_ALL);
 
 // Safely set display_errors if ini_set is available
