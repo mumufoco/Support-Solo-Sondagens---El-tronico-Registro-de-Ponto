@@ -159,7 +159,7 @@ class Database extends Config
         $this->default['password'] = env('database.default.password', '');
         $this->default['database'] = env('database.default.database', 'ponto_eletronico');
         $this->default['DBDriver'] = env('database.default.DBDriver', 'MySQLi');  // Default to MySQL for production
-        $this->default['port']     = env('database.default.port', 3306);  // MySQL port
+        $this->default['port']     = (int) env('database.default.port', 3306);  // CRITICAL: Cast to int for PHP 8.4 compatibility
         $this->default['charset']  = env('database.default.charset', 'utf8mb4');
         $this->default['DBCollat'] = env('database.default.DBCollat', 'utf8mb4_general_ci');
 
