@@ -9,6 +9,11 @@
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
+// IMPORTANTE: Iniciar sessão ANTES de qualquer output HTML
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 // Definir FCPATH
 define('FCPATH', __DIR__ . DIRECTORY_SEPARATOR);
 
@@ -143,17 +148,16 @@ echo "</div>";
 echo "<div class='section'>";
 echo "<h2>3️⃣ Verificação de Sessão</h2>";
 
-// Tentar iniciar sessão
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
 echo "<table>";
 echo "<tr><th>Item</th><th>Valor</th></tr>";
 echo "<tr><td>Session Status</td><td>" . (session_status() === PHP_SESSION_ACTIVE ? '✅ Ativa' : '❌ Inativa') . "</td></tr>";
 echo "<tr><td>Session ID</td><td>" . session_id() . "</td></tr>";
 echo "<tr><td>Session Name</td><td>" . session_name() . "</td></tr>";
 echo "<tr><td>Session Save Path</td><td>" . session_save_path() . "</td></tr>";
+echo "<tr><td>Session Cookie Secure</td><td>" . (ini_get('session.cookie_secure') ? '✅ Habilitado' : '❌ Desabilitado') . "</td></tr>";
+echo "<tr><td>Session Cookie HTTPOnly</td><td>" . (ini_get('session.cookie_httponly') ? '✅ Habilitado' : '❌ Desabilitado') . "</td></tr>";
+echo "<tr><td>Session Cookie Lifetime</td><td>" . ini_get('session.cookie_lifetime') . " segundos</td></tr>";
+echo "<tr><td>Session GC Max Lifetime</td><td>" . ini_get('session.gc_maxlifetime') . " segundos</td></tr>";
 echo "</table>";
 
 if (!empty($_SESSION)) {
@@ -163,6 +167,94 @@ if (!empty($_SESSION)) {
     echo "</div>";
 } else {
     echo "<div class='warning'>⚠️ Sessão vazia (esperado em teste direto)</div>";
+}
+
+// Alertas de segurança
+$securityIssues = [];
+if (!ini_get('session.cookie_secure') && isset($_SERVER['HTTPS'])) {
+    $securityIssues[] = "session.cookie_secure está DESABILITADO (recomendado para HTTPS)";
+}
+if (!ini_get('session.cookie_httponly')) {
+    $securityIssues[] = "session.cookie_httponly está DESABILITADO (previne XSS)";
+}
+
+if (!empty($securityIssues)) {
+    echo "<div class='warning'>";
+    echo "<strong>⚠️ Alertas de Segurança da Sessão PHP:</strong><ul>";
+    foreach ($securityIssues as $issue) {
+        echo "<li>$issue</li>";
+    }
+    echo "</ul>";
+    echo "<p><small>Nota: O CodeIgniter pode sobrescrever estas configurações via app/Config/Session.php</small></p>";
+    echo "</div>";
+}
+
+echo "</div>";
+
+// ==================================================
+// TESTE 3.5: Verificar Configuração de Sessão do CodeIgniter
+// ==================================================
+echo "<div class='section'>";
+echo "<h2>3.5️⃣ Configuração de Sessão do CodeIgniter</h2>";
+
+$sessionConfigFile = FCPATH . '../app/Config/Session.php';
+
+if (file_exists($sessionConfigFile)) {
+    echo "<div class='success'>✅ Arquivo de configuração existe</div>";
+
+    $content = file_get_contents($sessionConfigFile);
+
+    // Extrair configurações importantes
+    $configs = [];
+
+    if (preg_match('/public\s+string\s+\$driver\s*=\s*[\'"]([^\'"]+)/', $content, $match)) {
+        $configs['driver'] = $match[1];
+    }
+    if (preg_match('/public\s+string\s+\$cookieName\s*=\s*[\'"]([^\'"]+)/', $content, $match)) {
+        $configs['cookieName'] = $match[1];
+    }
+    if (preg_match('/public\s+int\s+\$expiration\s*=\s*(\d+)/', $content, $match)) {
+        $configs['expiration'] = $match[1] . ' segundos (' . ($match[1] / 3600) . ' horas)';
+    }
+    if (preg_match('/public\s+string\s+\$savePath\s*=\s*[\'"]([^\'"]+)/', $content, $match)) {
+        $configs['savePath'] = $match[1];
+    }
+    if (preg_match('/public\s+bool\s+\$matchIP\s*=\s*(true|false)/', $content, $match)) {
+        $configs['matchIP'] = $match[1];
+    }
+    if (preg_match('/public\s+int\s+\$timeToUpdate\s*=\s*(\d+)/', $content, $match)) {
+        $configs['timeToUpdate'] = $match[1] . ' segundos';
+    }
+    if (preg_match('/public\s+bool\s+\$regenerateDestroy\s*=\s*(true|false)/', $content, $match)) {
+        $configs['regenerateDestroy'] = $match[1];
+    }
+
+    if (!empty($configs)) {
+        echo "<table>";
+        echo "<tr><th>Configuração</th><th>Valor</th></tr>";
+        foreach ($configs as $key => $value) {
+            echo "<tr><td class='code'>$key</td><td>$value</td></tr>";
+        }
+        echo "</table>";
+    }
+
+    // Verificar se savePath existe e é gravável
+    if (isset($configs['savePath'])) {
+        $savePath = str_replace('WRITEPATH', dirname(__DIR__) . '/writable/', $configs['savePath']);
+        if (file_exists($savePath)) {
+            $writable = is_writable($savePath);
+            if ($writable) {
+                echo "<div class='success'>✅ Diretório de sessão é gravável</div>";
+            } else {
+                echo "<div class='error'>❌ Diretório de sessão NÃO é gravável: <code>$savePath</code></div>";
+            }
+        } else {
+            echo "<div class='error'>❌ Diretório de sessão não existe: <code>$savePath</code></div>";
+        }
+    }
+
+} else {
+    echo "<div class='error'>❌ Arquivo de configuração não encontrado</div>";
 }
 
 echo "</div>";
