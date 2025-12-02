@@ -41,8 +41,8 @@ class ManagerFilter implements FilterInterface
             return redirect()->to('/auth/login');
         }
 
-        // Check if user has manager or admin role
-        $userRole = $session->get('user_role');
+        // Check if user has manager or admin role (case-insensitive)
+        $userRole = strtolower($session->get('user_role'));
 
         if (!in_array($userRole, ['admin', 'gestor'])) {
             // Log unauthorized access attempt

@@ -41,10 +41,10 @@ class AdminFilter implements FilterInterface
             return redirect()->to('/auth/login');
         }
 
-        // Check if user has admin role
+        // Check if user has admin role (case-insensitive)
         $userRole = $session->get('user_role');
 
-        if ($userRole !== 'admin') {
+        if (strtolower($userRole) !== 'admin') {
             // Log unauthorized access attempt
             $this->logUnauthorizedAccess($session->get('user_id'), current_url());
 
