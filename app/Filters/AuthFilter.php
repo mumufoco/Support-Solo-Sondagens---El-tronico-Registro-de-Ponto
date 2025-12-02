@@ -24,8 +24,14 @@ class AuthFilter implements FilterInterface
     {
         $session = session();
 
+        // CRITICAL DEBUG: Log session state in AuthFilter
+        log_message('debug', '[AUTHFILTER] Request to: ' . current_url());
+        log_message('debug', '[AUTHFILTER] Session ID: ' . session_id());
+        log_message('debug', '[AUTHFILTER] Has user_id: ' . ($session->get('user_id') ? 'YES' : 'NO'));
+
         // Check if user is authenticated
         if (!$session->get('user_id')) {
+            log_message('warning', '[AUTHFILTER] No user_id in session, redirecting to login');
             // Store intended URL for redirect after login
             $session->set('redirect_url', current_url());
 

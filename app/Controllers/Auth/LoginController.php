@@ -149,13 +149,21 @@ class LoginController extends BaseController
         // Set session data
         $this->session->set($sessionData);
 
-        // IMPORTANT: Let CodeIgniter handle session persistence
-        // DO NOT mix CodeIgniter session methods with native PHP session functions
-        // (session_write_close/session_start) as this causes data loss with SafeFileHandler
+        // CRITICAL DEBUG: Log session data immediately after set
+        log_message('debug', '[LOGIN] Session data set for user_id=' . $user->id);
+        log_message('debug', '[LOGIN] Session ID: ' . session_id());
+        log_message('debug', '[LOGIN] Session data: ' . json_encode($sessionData));
 
-        // Mark session as modified to ensure write on shutdown
-        $this->session->markAsFlashdata('_ci_session_modified');
-        $this->session->unmarkFlashdata('_ci_session_modified');
+        // Verify data was actually set
+        $verifyUserId = $this->session->get('user_id');
+        $verifyRole = $this->session->get('user_role');
+        log_message('debug', '[LOGIN] Verification - user_id from session: ' . ($verifyUserId ?? 'NULL'));
+        log_message('debug', '[LOGIN] Verification - user_role from session: ' . ($verifyRole ?? 'NULL'));
+
+        // Check cookie configuration
+        $cookieName = ini_get('session.name') ?: 'unknown';
+        log_message('debug', '[LOGIN] Cookie name (PHP): ' . $cookieName);
+        log_message('debug', '[LOGIN] Session driver: ' . get_class($this->session));
 
         // Log with high level to ensure it's written
         log_message('info', 'Login successful: user_id=' . $user->id . ', role=' . $user->role);

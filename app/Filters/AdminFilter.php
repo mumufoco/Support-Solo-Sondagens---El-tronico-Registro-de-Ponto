@@ -24,9 +24,17 @@ class AdminFilter implements FilterInterface
     {
         $session = session();
 
+        // CRITICAL DEBUG: Log complete session state
+        log_message('debug', '[ADMINFILTER] Request to: ' . current_url());
+        log_message('debug', '[ADMINFILTER] Session ID: ' . session_id());
+        log_message('debug', '[ADMINFILTER] Session data: ' . json_encode($session->get()));
+        log_message('debug', '[ADMINFILTER] Cookie name (PHP): ' . (ini_get('session.name') ?: 'unknown'));
+        log_message('debug', '[ADMINFILTER] Cookies received: ' . json_encode($_COOKIE ?? []));
+
         // First check if user is authenticated
         if (!$session->get('user_id')) {
             log_message('warning', 'AdminFilter: No user_id in session for URL: ' . current_url());
+            log_message('warning', '[ADMINFILTER] Session appears empty - possible session loss!');
             $session->set('redirect_url', current_url());
             $session->setFlashdata('error', 'Você precisa estar logado para acessar esta página.');
 

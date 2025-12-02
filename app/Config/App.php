@@ -99,16 +99,12 @@ class App extends BaseConfig
     /**
      * Session Variables
      *
-     * Note: Using SafeFileHandler for shared hosting compatibility
-     * where ini_set() may be disabled for security reasons.
+     * IMPORTANT: Session configuration has been moved to Config/Session.php
+     * as per CodeIgniter 4.5+ best practices. DO NOT configure session
+     * settings here as it may cause conflicts with Session.php.
+     *
+     * Session settings are now in: app/Config/Session.php
      */
-    public string $sessionDriver            = 'App\Session\Handlers\SafeFileHandler';
-    public string $sessionCookieName        = 'ponto_session';
-    public int    $sessionExpiration        = 7200;
-    public string $sessionSavePath          = WRITEPATH . 'session';
-    public bool   $sessionMatchIP           = false;
-    public int    $sessionTimeToUpdate      = 300;
-    public bool   $sessionRegenerateDestroy = false;
 
     /**
      * Cookie Settings
