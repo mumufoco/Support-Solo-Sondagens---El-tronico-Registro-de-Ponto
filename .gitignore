@@ -213,3 +213,7 @@ public/mix-manifest.json
 # Documentation Build
 #-------------------------
 docs/_build/
+
+server.log
+writable/test-cookies.txt
+writable/*.db
