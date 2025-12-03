@@ -35,10 +35,12 @@ class App extends BaseConfig
         }
 
         // Force HTTPS in production environment
-        $this->forceGlobalSecureRequests = env('app.forceGlobalSecureRequests', ENVIRONMENT === 'production');
+        // IMPORTANTE: Não usar ENVIRONMENT aqui pois ainda não foi definido
+        $this->forceGlobalSecureRequests = env('app.forceGlobalSecureRequests', false);
 
-        // Secure cookies in production OR when using HTTPS
-        if (ENVIRONMENT === 'production' || (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on')) {
+        // Secure cookies ONLY when using HTTPS (detectado pelo server)
+        // NÃO forçar cookieSecure baseado em ENVIRONMENT para evitar problemas com HTTP
+        if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') {
             $this->cookieSecure = true;
         }
     }
