@@ -84,6 +84,37 @@ $routes->group('justifications', ['filter' => 'auth'], static function ($routes)
 
 /*
  * --------------------------------------------------------------------
+ * Admin Settings Routes
+ * --------------------------------------------------------------------
+ */
+$routes->group('admin/settings', ['filter' => ['auth', 'admin'], 'namespace' => 'App\Controllers\Admin'], static function ($routes) {
+    // Main settings dashboard
+    $routes->get('/', 'SettingsController::index');
+    $routes->post('clear-cache', 'SettingsController::clearCache');
+    $routes->get('export', 'SettingsController::export');
+    $routes->post('import', 'SettingsController::import');
+    $routes->post('reset', 'SettingsController::reset');
+    $routes->get('test-database', 'SettingsController::testDatabase');
+    $routes->get('system-info', 'SettingsController::systemInfo');
+
+    // Appearance settings
+    $routes->get('appearance', 'AppearanceController::index');
+    $routes->post('appearance/update', 'AppearanceController::update');
+    $routes->post('appearance/upload-logo', 'AppearanceController::uploadLogo');
+    $routes->post('appearance/upload-favicon', 'AppearanceController::uploadFavicon');
+    $routes->post('appearance/upload-login-background', 'AppearanceController::uploadLoginBackground');
+    $routes->post('appearance/reset', 'AppearanceController::reset');
+    $routes->get('appearance/preview', 'AppearanceController::preview');
+
+    // TODO: Add more settings routes
+    // - authentication
+    // - certificate
+    // - system
+    // - security
+});
+
+/*
+ * --------------------------------------------------------------------
  * Employee Routes (Manager and Admin only)
  * --------------------------------------------------------------------
  */
