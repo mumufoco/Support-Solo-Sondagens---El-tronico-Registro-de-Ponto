@@ -106,11 +106,27 @@ $routes->group('admin/settings', ['filter' => ['auth', 'admin'], 'namespace' => 
     $routes->post('appearance/reset', 'AppearanceController::reset');
     $routes->get('appearance/preview', 'AppearanceController::preview');
 
-    // TODO: Add more settings routes
-    // - authentication
-    // - certificate
-    // - system
-    // - security
+    // Authentication settings
+    $routes->get('authentication', 'AuthenticationController::index');
+    $routes->post('authentication/update', 'AuthenticationController::update');
+    $routes->post('authentication/test-2fa', 'AuthenticationController::test2FA');
+    $routes->get('authentication/login-stats', 'AuthenticationController::loginStats');
+    $routes->post('authentication/clear-locked', 'AuthenticationController::clearLockedAccounts');
+    $routes->post('authentication/test-email', 'AuthenticationController::testEmail');
+    $routes->post('authentication/reset', 'AuthenticationController::reset');
+
+    // System settings
+    $routes->get('system', 'SystemController::index');
+    $routes->post('system/update', 'SystemController::update');
+    $routes->post('system/test-timezone', 'SystemController::testTimezone');
+    $routes->post('system/reset', 'SystemController::reset');
+
+    // Security settings
+    $routes->get('security', 'SecurityController::index');
+    $routes->post('security/update', 'SecurityController::update');
+    $routes->get('security/audit-logs', 'SecurityController::auditLogs');
+    $routes->post('security/backup', 'SecurityController::backup');
+    $routes->post('security/reset', 'SecurityController::reset');
 });
 
 /*
