@@ -78,18 +78,31 @@ class DashboardController extends BaseController
     {
         $this->requireRole('gestor');
 
+        $department = $this->currentUser->department ?? 'default';
+        $stats = $this->getManagerStatistics();
+
         // Get department employees
         $departmentEmployees = $this->employeeModel
-            ->where('department', $this->currentUser->department)
+            ->where('department', $department)
             ->where('active', true)
             ->findAll();
 
+        // Calculate attendance rate
+        $attendanceRate = count($departmentEmployees) > 0
+            ? round(($stats['present_today'] / count($departmentEmployees)) * 100)
+            : 0;
+
         $data = [
             'currentUser' => $this->currentUser,
-            'statistics' => $this->getManagerStatistics(),
-            'departmentEmployees' => $departmentEmployees,
+            'teamStats' => [
+                'total_employees' => count($departmentEmployees),
+                'attendance_rate' => $attendanceRate,
+                'pending_approvals' => $stats['pending_justifications'] ?? 0,
+                'absent_today' => $stats['absent_today'] ?? 0,
+            ],
             'pendingJustifications' => $this->getPendingJustifications(),
-            'todayPunches' => $this->getTodayDepartmentPunches(),
+            'teamActivity' => $this->getTeamActivity($department),
+            'alerts' => $this->getManagerAlerts($department),
             'notifications' => $this->getUserNotifications(),
         ];
 
@@ -103,15 +116,35 @@ class DashboardController extends BaseController
     {
         $this->requireAuth();
 
+        $stats = $this->getEmployeeStatistics();
+        $hoursBalance = $this->getHoursBalance();
+
+        // Determine current status (clocked in/out)
+        $todayPunches = $this->getTodayPunches();
+        $lastPunch = !empty($todayPunches) ? end($todayPunches) : null;
+        $currentStatus = ($lastPunch && $lastPunch->punch_type === 'entrada') ? 'clocked_in' : 'clocked_out';
+
+        // Format hours balance
+        $balanceNumeric = $hoursBalance['current_balance'];
+        $balanceFormatted = ($balanceNumeric >= 0 ? '+' : '') . round($balanceNumeric, 1) . 'h';
+
         // Get employee's own data
         $data = [
             'currentUser' => $this->currentUser,
-            'statistics' => $this->getEmployeeStatistics(),
-            'todayPunches' => $this->getTodayPunches(),
-            'hoursBalance' => $this->getHoursBalance(),
-            'recentJustifications' => $this->getRecentJustifications(),
-            'warnings' => $this->getActiveWarnings(),
-            'notifications' => $this->getUserNotifications(),
+            'employeeData' => [
+                'current_status' => $currentStatus,
+            ],
+            'employeeStats' => [
+                'hours_worked_month' => round($stats['hours_worked_month'], 1) . 'h',
+                'balance_hours' => $balanceFormatted,
+                'balance_hours_numeric' => $balanceNumeric,
+                'attendance_rate' => $this->calculateAttendanceRate($this->currentUser->id),
+                'pending_justifications' => $stats['pending_justifications'] ?? 0,
+            ],
+            'todayPunches' => $this->formatTodayPunches($todayPunches),
+            'weekSummary' => $this->getWeekSummary($this->currentUser->id),
+            'upcomingEvents' => $this->getUpcomingEvents($this->currentUser->id),
+            'notifications' => $this->formatNotifications($this->getUserNotifications()),
         ];
 
         return view('dashboard/employee', $data);
@@ -471,5 +504,177 @@ class DashboardController extends BaseController
             ->where('punch_type', 'entrada')
             ->where('TIME(punch_time) >', $employee->work_start_time)
             ->countAllResults();
+    }
+
+    /**
+     * Get team activity for manager dashboard
+     */
+    protected function getTeamActivity(string $department): array
+    {
+        $today = date('Y-m-d');
+
+        $activities = $this->timePunchModel
+            ->select('time_punches.*, employees.name as employee_name')
+            ->join('employees', 'employees.id = time_punches.employee_id')
+            ->where('employees.department', $department)
+            ->where('DATE(time_punches.punch_time)', $today)
+            ->orderBy('time_punches.punch_time', 'DESC')
+            ->limit(10)
+            ->findAll();
+
+        return array_map(function ($activity) {
+            return [
+                'employee_name' => $activity->employee_name ?? 'Unknown',
+                'action' => $this->formatPunchAction($activity->punch_type ?? 'entrada'),
+                'timestamp' => $activity->punch_time ?? date('Y-m-d H:i:s'),
+                'status' => 'active',
+            ];
+        }, $activities);
+    }
+
+    /**
+     * Get manager alerts
+     */
+    protected function getManagerAlerts(string $department): array
+    {
+        $alerts = [];
+
+        // Check for pending justifications
+        $pendingCount = $this->justificationModel
+            ->join('employees', 'employees.id = justifications.employee_id')
+            ->where('employees.department', $department)
+            ->where('justifications.status', 'pending')
+            ->countAllResults();
+
+        if ($pendingCount > 5) {
+            $alerts[] = [
+                'message' => "Você tem {$pendingCount} justificativas pendentes de aprovação.",
+                'type' => 'warning',
+            ];
+        }
+
+        return $alerts;
+    }
+
+    /**
+     * Format today's punches for employee dashboard
+     */
+    protected function formatTodayPunches(array $punches): array
+    {
+        return array_map(function ($punch) {
+            return [
+                'type' => $punch->punch_type ?? 'entrada',
+                'timestamp' => $punch->punch_time ?? date('Y-m-d H:i:s'),
+                'location' => $punch->location ?? null,
+                'status' => 'active',
+            ];
+        }, $punches);
+    }
+
+    /**
+     * Get week summary for employee
+     */
+    protected function getWeekSummary(int $employeeId): array
+    {
+        $weekDays = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+        $summary = [];
+        $today = date('N'); // 1 (Monday) to 7 (Sunday)
+
+        for ($i = 1; $i <= 7; $i++) {
+            $date = date('Y-m-d', strtotime("monday this week +{$i} days -1 day"));
+            $punches = $this->timePunchModel
+                ->where('employee_id', $employeeId)
+                ->where('DATE(punch_time)', $date)
+                ->findAll();
+
+            $hours = !empty($punches) ? $this->timePunchModel->calculateTotalHours($punches) : 0;
+
+            $summary[] = [
+                'name' => $weekDays[$i - 1],
+                'hours' => $hours > 0 ? round($hours, 1) . 'h' : '',
+                'is_today' => ($i === $today),
+            ];
+        }
+
+        return $summary;
+    }
+
+    /**
+     * Get upcoming events for employee
+     */
+    protected function getUpcomingEvents(int $employeeId): array
+    {
+        // This is a placeholder - in production, you would fetch from a calendar/events table
+        return [
+            // ['title' => 'Reunião de equipe', 'date' => date('Y-m-d', strtotime('+2 days'))],
+            // ['title' => 'Treinamento de segurança', 'date' => date('Y-m-d', strtotime('+5 days'))],
+        ];
+    }
+
+    /**
+     * Calculate attendance rate for employee
+     */
+    protected function calculateAttendanceRate(int $employeeId): string
+    {
+        $thisMonth = date('Y-m');
+        $workDays = $this->getWorkDaysInMonth();
+
+        $presentDays = $this->timePunchModel
+            ->select('DISTINCT DATE(punch_time) as punch_date')
+            ->where('employee_id', $employeeId)
+            ->where('DATE(punch_time) LIKE', $thisMonth . '%')
+            ->countAllResults();
+
+        $rate = $workDays > 0 ? round(($presentDays / $workDays) * 100) : 100;
+
+        return $rate . '%';
+    }
+
+    /**
+     * Get work days in current month (excluding weekends)
+     */
+    protected function getWorkDaysInMonth(): int
+    {
+        $month = date('m');
+        $year = date('Y');
+        $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+        $workDays = 0;
+
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            $dayOfWeek = date('N', strtotime("$year-$month-$day"));
+            if ($dayOfWeek < 6) { // Monday = 1, Friday = 5
+                $workDays++;
+            }
+        }
+
+        return $workDays;
+    }
+
+    /**
+     * Format notifications for dashboard
+     */
+    protected function formatNotifications(array $notifications): array
+    {
+        return array_map(function ($notification) {
+            return [
+                'message' => $notification->message ?? 'Notification',
+                'type' => $notification->type ?? 'info',
+            ];
+        }, array_slice($notifications, 0, 3));
+    }
+
+    /**
+     * Format punch action for display
+     */
+    protected function formatPunchAction(string $punchType): string
+    {
+        $actions = [
+            'entrada' => 'Registrou entrada',
+            'saida' => 'Registrou saída',
+            'intervalo_inicio' => 'Iniciou intervalo',
+            'intervalo_fim' => 'Finalizou intervalo',
+        ];
+
+        return $actions[$punchType] ?? 'Registrou ponto';
     }
 }
