@@ -124,6 +124,7 @@ $routes->group('admin/settings', ['filter' => ['auth', 'admin'], 'namespace' => 
     // Security settings
     $routes->get('security', 'SecurityController::index');
     $routes->post('security/update', 'SecurityController::update');
+    $routes->post('security/test-password', 'SecurityController::testPassword');
     $routes->get('security/audit-logs', 'SecurityController::auditLogs');
     $routes->post('security/backup', 'SecurityController::backup');
     $routes->post('security/reset', 'SecurityController::reset');
