@@ -102,6 +102,10 @@ class FingerprintController extends BaseController
             ])->setStatusCode(403);
         }
 
+        // CRITICAL SECURITY: Require HTTPS for biometric data transmission
+        $response = $this->requireHttps('Biometric data must be transmitted over HTTPS.');
+        if ($response) return $response;
+
         // Validate input
         $rules = [
             'employee_id' => 'required|integer',
@@ -371,6 +375,10 @@ class FingerprintController extends BaseController
                 'message' => 'Acesso negado',
             ])->setStatusCode(403);
         }
+
+        // CRITICAL SECURITY: Require HTTPS for biometric data transmission
+        $response = $this->requireHttps('Biometric data must be transmitted over HTTPS.');
+        if ($response) return $response;
 
         // Validate input
         $rules = [

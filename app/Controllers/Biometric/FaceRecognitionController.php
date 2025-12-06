@@ -63,6 +63,10 @@ class FaceRecognitionController extends BaseController
     {
         $this->requireAuth();
 
+        // CRITICAL SECURITY: Require HTTPS for biometric data transmission
+        $response = $this->requireHttps('Biometric data must be transmitted over HTTPS.');
+        if ($response) return $response;
+
         // Check consent
         if (!$this->consentModel->hasConsent($this->currentUser->id, 'biometric_data')) {
             return $this->respondError('Você precisa consentir com o uso de dados biométricos.', null, 403);
@@ -289,6 +293,10 @@ class FaceRecognitionController extends BaseController
     public function testRecognition()
     {
         $this->requireAuth();
+
+        // CRITICAL SECURITY: Require HTTPS for biometric data transmission
+        $response = $this->requireHttps('Biometric data must be transmitted over HTTPS.');
+        if ($response) return $response;
 
         // Validate input
         $rules = [

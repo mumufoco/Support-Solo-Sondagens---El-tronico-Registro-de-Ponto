@@ -263,4 +263,57 @@ abstract class BaseController extends Controller
 
         return csrf_hash() === $token;
     }
+
+    /**
+     * Require HTTPS connection
+     *
+     * CRITICAL: Call this method in all controllers/methods that handle
+     * sensitive data such as biometric templates, passwords, or personal information.
+     *
+     * @param string $message Custom error message (optional)
+     * @return mixed Redirect response if not HTTPS (for web), JSON error (for API)
+     */
+    protected function requireHttps(string $message = 'Esta operação requer uma conexão HTTPS segura.')
+    {
+        // Check if request is secure (HTTPS)
+        if (!$this->request->isSecure()) {
+            // Log security violation
+            log_message('warning', 'HTTPS_REQUIRED: Insecure connection attempt from IP ' . $this->getClientIp());
+
+            $this->logAudit(
+                'HTTPS_VIOLATION',
+                'security',
+                null,
+                null,
+                ['ip' => $this->getClientIp(), 'url' => current_url()],
+                'Tentativa de acesso sem HTTPS em operação sensível',
+                'warning'
+            );
+
+            // Return appropriate error response
+            if ($this->request->isAJAX() || $this->request->getHeaderLine('Accept') === 'application/json') {
+                // API/AJAX request - return JSON error
+                return $this->respondError($message, null, 403);
+            } else {
+                // Web request - redirect with error
+                $this->setError($message);
+                return redirect()->back();
+            }
+        }
+
+        // HTTPS is enabled, continue normally
+        return null;
+    }
+
+    /**
+     * Check if HTTPS is enabled (non-blocking check)
+     *
+     * Use this for conditional logic without interrupting flow.
+     *
+     * @return bool True if HTTPS, false otherwise
+     */
+    protected function isHttps(): bool
+    {
+        return $this->request->isSecure();
+    }
 }
