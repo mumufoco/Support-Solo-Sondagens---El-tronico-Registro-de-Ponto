@@ -21,12 +21,13 @@ class Session extends BaseConfig
      * - `CodeIgniter\Session\Handlers\RedisHandler`
      * - `App\Session\Handlers\SafeFileHandler` (for shared hosting)
      *
-     * SafeFileHandler is recommended for shared hosting environments where
-     * ini_set() is disabled for security reasons.
+     * CRITICAL FIX: Using standard FileHandler to fix ERR_TOO_MANY_REDIRECTS
+     * The custom SafeFileHandler was causing session data not to persist
+     * properly, leading to login redirect loops.
      *
      * @var class-string<BaseHandler>
      */
-    public string $driver = SafeFileHandler::class;
+    public string $driver = FileHandler::class;
 
     /**
      * --------------------------------------------------------------------------
