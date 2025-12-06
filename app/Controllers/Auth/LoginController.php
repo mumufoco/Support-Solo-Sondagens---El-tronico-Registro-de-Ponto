@@ -149,6 +149,13 @@ class LoginController extends BaseController
         // Set session data
         $this->session->set($sessionData);
 
+        // CRITICAL FIX: Force session save before redirect
+        // This ensures session data is written to storage BEFORE redirect happens
+        // Without this, the redirect may occur before session is saved, causing loop
+        if (method_exists($this->session, 'commit')) {
+            $this->session->commit();
+        }
+
         // CRITICAL DEBUG: Log session data immediately after set
         log_message('debug', '[LOGIN] Session data set for user_id=' . $user->id);
         log_message('debug', '[LOGIN] Session ID: ' . session_id());

@@ -27,11 +27,16 @@ class AuthFilter implements FilterInterface
         // CRITICAL DEBUG: Log session state in AuthFilter
         log_message('debug', '[AUTHFILTER] Request to: ' . current_url());
         log_message('debug', '[AUTHFILTER] Session ID: ' . session_id());
-        log_message('debug', '[AUTHFILTER] Has user_id: ' . ($session->get('user_id') ? 'YES' : 'NO'));
+        log_message('debug', '[AUTHFILTER] Has user_id: ' . ($session->get('user_id') ? 'YES (' . $session->get('user_id') . ')' : 'NO'));
+        log_message('debug', '[AUTHFILTER] All session data: ' . json_encode($session->get()));
 
         // Check if user is authenticated
-        if (!$session->get('user_id')) {
+        $userId = $session->get('user_id');
+
+        if (!$userId) {
             log_message('warning', '[AUTHFILTER] No user_id in session, redirecting to login');
+            log_message('debug', '[AUTHFILTER] Session data dump: ' . print_r($_SESSION ?? [], true));
+
             // Store intended URL for redirect after login
             $session->set('redirect_url', current_url());
 
@@ -49,6 +54,8 @@ class AuthFilter implements FilterInterface
             $session->setFlashdata('error', 'Você precisa estar logado para acessar esta página.');
             return redirect()->to('/auth/login');
         }
+
+        log_message('debug', '[AUTHFILTER] User authenticated, user_id=' . $userId . ', allowing request');
 
         // NOTE: Session expiration is handled by CodeIgniter's session handler
         // No need for manual timeout checking here - it can cause premature logout
