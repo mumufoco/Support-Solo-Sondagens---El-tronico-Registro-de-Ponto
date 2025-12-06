@@ -908,6 +908,7 @@ function create_database_tables(mysqli $mysqli): array {
             `email` VARCHAR(255) NOT NULL,
             `password` VARCHAR(255) NOT NULL,
             `cpf` VARCHAR(14) DEFAULT NULL,
+            `unique_code` VARCHAR(8) NOT NULL,
             `role` ENUM('admin', 'gestor', 'funcionario') NOT NULL DEFAULT 'funcionario',
             `department` VARCHAR(100) DEFAULT NULL,
             `position` VARCHAR(100) DEFAULT NULL,
@@ -924,6 +925,7 @@ function create_database_tables(mysqli $mysqli): array {
             `deleted_at` DATETIME DEFAULT NULL,
             PRIMARY KEY (`id`),
             UNIQUE KEY `email` (`email`),
+            UNIQUE KEY `unique_code` (`unique_code`),
             INDEX `role` (`role`),
             INDEX `department` (`department`),
             INDEX `active` (`active`)
