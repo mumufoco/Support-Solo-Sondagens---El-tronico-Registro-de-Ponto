@@ -17,7 +17,7 @@ class ScheduleModel extends Model
     protected $primaryKey = 'id';
     protected $useAutoIncrement = true;
     protected $returnType = 'object';
-    protected $useSoftDeletes = false;
+    protected $useSoftDeletes = true;
     protected $protectFields = true;
 
     protected $allowedFields = [
@@ -37,6 +37,7 @@ class ScheduleModel extends Model
     protected $dateFormat = 'datetime';
     protected $createdField = 'created_at';
     protected $updatedField = 'updated_at';
+    protected $deletedField = 'deleted_at';
 
     // Validation
     protected $validationRules = [
@@ -149,6 +150,9 @@ class ScheduleModel extends Model
 
     /**
      * Create recurring schedule
+     *
+     * @param array $data Schedule data
+     * @return bool Success status
      */
     public function createRecurringSchedule(array $data): bool
     {
@@ -163,13 +167,17 @@ class ScheduleModel extends Model
         $endDate = new \DateTime($data['recurrence_end_date']);
         $weekDay = (int)$data['week_day'];
 
+        // Safety limit: maximum 52 weeks (1 year) to prevent excessive records
+        $maxRecurrences = 52;
+        $recurrenceCount = 0;
+
         // Adjust to the correct weekday
         while ((int)$currentDate->format('w') !== $weekDay) {
             $currentDate->modify('+1 day');
         }
 
         $schedules = [];
-        while ($currentDate <= $endDate) {
+        while ($currentDate <= $endDate && $recurrenceCount < $maxRecurrences) {
             if (!$this->isEmployeeScheduled((int)$data['employee_id'], $currentDate->format('Y-m-d'))) {
                 $schedules[] = [
                     'employee_id' => $data['employee_id'],
@@ -185,6 +193,12 @@ class ScheduleModel extends Model
             }
 
             $currentDate->modify('+7 days');
+            $recurrenceCount++;
+        }
+
+        // Log warning if limit was reached
+        if ($recurrenceCount >= $maxRecurrences) {
+            log_message('warning', "Recurring schedule limit ({$maxRecurrences}) reached for employee {$data['employee_id']}. Some schedules may not have been created.");
         }
 
         if (!empty($schedules)) {

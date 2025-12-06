@@ -120,6 +120,28 @@ class ScheduleController extends BaseController
         $date = $this->request->getPost('date');
         $isRecurring = $this->request->getPost('is_recurring') == '1';
 
+        // Validate recurrence end date
+        if ($isRecurring) {
+            $recurrenceEndDate = $this->request->getPost('recurrence_end_date');
+
+            if (empty($recurrenceEndDate)) {
+                $this->setError('A data final da recorrência é obrigatória para escalas recorrentes.');
+                return redirect()->back()->withInput();
+            }
+
+            // End date must be after start date
+            if (strtotime($recurrenceEndDate) <= strtotime($date)) {
+                $this->setError('A data final da recorrência deve ser posterior à data inicial.');
+                return redirect()->back()->withInput();
+            }
+
+            // End date should be at least 7 days after start date
+            if (strtotime($recurrenceEndDate) < strtotime($date . ' +7 days')) {
+                $this->setError('A data final da recorrência deve ser no mínimo 7 dias após a data inicial.');
+                return redirect()->back()->withInput();
+            }
+        }
+
         // Check if employee is already scheduled for this date
         if ($this->scheduleModel->isEmployeeScheduled($employeeId, $date)) {
             $this->setError('Este funcionário já possui um turno agendado para esta data.');

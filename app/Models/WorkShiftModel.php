@@ -71,6 +71,9 @@ class WorkShiftModel extends Model
     // Callbacks
     protected $beforeInsert = ['setCreatedBy'];
     protected $beforeUpdate = [];
+    protected $afterInsert = ['clearCacheAfterChange'];
+    protected $afterUpdate = ['clearCacheAfterChange'];
+    protected $afterDelete = ['clearCacheAfterChange'];
 
     /**
      * Set created_by field
@@ -90,11 +93,55 @@ class WorkShiftModel extends Model
     }
 
     /**
-     * Get all active shifts
+     * Get all active shifts (with cache)
+     *
+     * Results are cached for 1 hour to reduce database queries.
+     * Cache is automatically cleared when shifts are modified.
+     *
+     * @return array Active shifts
      */
     public function getActiveShifts(): array
     {
-        return $this->where('active', 1)->findAll();
+        $cache = \Config\Services::cache();
+        $cacheKey = 'work_shifts_active';
+
+        // Try to get from cache first
+        $shifts = $cache->get($cacheKey);
+
+        if ($shifts === null) {
+            // Not in cache, query database
+            $shifts = $this->where('active', 1)
+                ->orderBy('type', 'ASC')
+                ->orderBy('start_time', 'ASC')
+                ->findAll();
+
+            // Store in cache for 1 hour (3600 seconds)
+            $cache->save($cacheKey, $shifts, 3600);
+        }
+
+        return $shifts;
+    }
+
+    /**
+     * Clear active shifts cache
+     *
+     * Call this after creating, updating, or deleting shifts
+     */
+    protected function clearActiveShiftsCache(): void
+    {
+        $cache = \Config\Services::cache();
+        $cache->delete('work_shifts_active');
+    }
+
+    /**
+     * Clear cache after insert/update/delete
+     *
+     * This is called automatically by model callbacks
+     */
+    protected function clearCacheAfterChange(array $data): array
+    {
+        $this->clearActiveShiftsCache();
+        return $data;
     }
 
     /**
