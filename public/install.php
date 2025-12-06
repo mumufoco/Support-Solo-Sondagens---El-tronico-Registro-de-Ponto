@@ -53,6 +53,19 @@ function generate_encryption_key(): string {
 }
 
 /**
+ * Generate unique employee code (8 alphanumeric characters)
+ */
+function generate_unique_code(): string {
+    // Generate 8 character alphanumeric code (uppercase letters and numbers)
+    $characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    $code = '';
+    for ($i = 0; $i < 8; $i++) {
+        $code .= $characters[random_int(0, strlen($characters) - 1)];
+    }
+    return $code;
+}
+
+/**
  * Render HTML header
  */
 function render_header(string $title = 'Instalação do Sistema'): void {
@@ -1185,14 +1198,40 @@ function step_4_install(): void {
                     $password_hash = password_hash($admin['password_plain'], PASSWORD_BCRYPT);
                     $now = date('Y-m-d H:i:s');
 
+                    // Generate unique code for employee
+                    $unique_code = generate_unique_code();
+
+                    // Ensure unique_code is unique (retry if collision)
+                    $max_attempts = 10;
+                    $attempt = 0;
+                    while ($attempt < $max_attempts) {
+                        $check_stmt = $mysqli->prepare("SELECT id FROM `employees` WHERE `unique_code` = ?");
+                        $check_stmt->bind_param('s', $unique_code);
+                        $check_stmt->execute();
+                        $check_stmt->store_result();
+
+                        if ($check_stmt->num_rows === 0) {
+                            $check_stmt->close();
+                            break; // Code is unique
+                        }
+
+                        $check_stmt->close();
+                        $unique_code = generate_unique_code(); // Generate new code
+                        $attempt++;
+                    }
+
+                    if ($attempt >= $max_attempts) {
+                        throw new Exception('Não foi possível gerar um código único após ' . $max_attempts . ' tentativas');
+                    }
+
                     // Use prepared statement to prevent any corruption
-                    $stmt = $mysqli->prepare("INSERT INTO `employees` (`name`, `email`, `cpf`, `password`, `role`, `active`, `created_at`) VALUES (?, ?, ?, ?, 'admin', 1, ?)");
+                    $stmt = $mysqli->prepare("INSERT INTO `employees` (`name`, `email`, `cpf`, `unique_code`, `password`, `role`, `active`, `created_at`) VALUES (?, ?, ?, ?, ?, 'admin', 1, ?)");
 
                     if (!$stmt) {
                         throw new Exception('Erro ao preparar statement: ' . $mysqli->error);
                     }
 
-                    $stmt->bind_param('sssss', $admin['name'], $admin['email'], $admin['cpf'], $password_hash, $now);
+                    $stmt->bind_param('ssssss', $admin['name'], $admin['email'], $admin['cpf'], $unique_code, $password_hash, $now);
 
                     if (!$stmt->execute()) {
                         throw new Exception('Erro ao criar administrador: ' . $stmt->error);
@@ -1201,7 +1240,7 @@ function step_4_install(): void {
                     $admin_id = $stmt->insert_id;
                     $stmt->close();
 
-                    updateStepStatus('admin', 'success', 'Administrador criado com ID: ' . $admin_id);
+                    updateStepStatus('admin', 'success', 'Administrador criado com ID: ' . $admin_id . ' e código: ' . $unique_code);
 
                     // STEP 5: Insert default settings
                     updateStepStatus('final', 'running', 'Configurações finais...');
