@@ -150,6 +150,57 @@ $routes->group('employees', ['filter' => ['auth', 'manager']], static function (
 
 /*
  * --------------------------------------------------------------------
+ * Work Shift Routes (Manager and Admin only)
+ * --------------------------------------------------------------------
+ */
+$routes->group('shifts', ['filter' => ['auth', 'manager']], static function ($routes) {
+    $routes->get('/', 'Shift\ShiftController::index');
+    $routes->get('create', 'Shift\ShiftController::create');
+    $routes->post('store', 'Shift\ShiftController::store');
+    $routes->get('(:num)', 'Shift\ShiftController::show/$1');
+    $routes->get('(:num)/edit', 'Shift\ShiftController::edit/$1');
+    $routes->post('(:num)/update', 'Shift\ShiftController::update/$1');
+    $routes->delete('(:num)', 'Shift\ShiftController::delete/$1');
+    $routes->post('(:num)/clone', 'Shift\ShiftController::clone/$1');
+    $routes->post('(:num)/toggle-active', 'Shift\ShiftController::toggleActive/$1');
+    $routes->get('statistics', 'Shift\ShiftController::statistics');
+});
+
+/*
+ * --------------------------------------------------------------------
+ * Schedule Routes (Manager and Admin only)
+ * --------------------------------------------------------------------
+ */
+$routes->group('schedules', ['filter' => ['auth', 'manager']], static function ($routes) {
+    // Calendar view
+    $routes->get('/', 'Shift\ScheduleController::index');
+
+    // CRUD operations
+    $routes->get('create', 'Shift\ScheduleController::create');
+    $routes->post('store', 'Shift\ScheduleController::store');
+    $routes->get('(:num)/edit', 'Shift\ScheduleController::edit/$1');
+    $routes->post('(:num)/update', 'Shift\ScheduleController::update/$1');
+    $routes->delete('(:num)', 'Shift\ScheduleController::delete/$1');
+
+    // Bulk operations
+    $routes->get('bulk-assign', 'Shift\ScheduleController::bulkAssignForm');
+    $routes->post('bulk-assign', 'Shift\ScheduleController::bulkAssign');
+
+    // Export
+    $routes->get('export', 'Shift\ScheduleController::export');
+});
+
+/*
+ * --------------------------------------------------------------------
+ * Employee Schedule Routes (For employees to view their own schedules)
+ * --------------------------------------------------------------------
+ */
+$routes->group('my-schedules', ['filter' => 'auth'], static function ($routes) {
+    $routes->get('/', 'Shift\ScheduleController::mySchedules');
+});
+
+/*
+ * --------------------------------------------------------------------
  * Biometric Routes
  * --------------------------------------------------------------------
  */
