@@ -752,6 +752,7 @@ function step_3_admin(): void {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name = trim($_POST['admin_name'] ?? '');
         $email = trim($_POST['admin_email'] ?? '');
+        $cpf = preg_replace('/[^0-9]/', '', $_POST['admin_cpf'] ?? '');
         $password = $_POST['admin_password'] ?? '';
         $password_confirm = $_POST['admin_password_confirm'] ?? '';
 
@@ -766,6 +767,12 @@ function step_3_admin(): void {
             $errors[] = 'E-mail é obrigatório';
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $errors[] = 'E-mail inválido';
+        }
+
+        if (empty($cpf)) {
+            $errors[] = 'CPF é obrigatório';
+        } elseif (strlen($cpf) !== 11) {
+            $errors[] = 'CPF inválido (deve ter 11 dígitos)';
         }
 
         if (empty($password)) {
@@ -787,6 +794,7 @@ function step_3_admin(): void {
             $_SESSION['install']['data']['admin'] = [
                 'name' => $name,
                 'email' => strtolower($email),
+                'cpf' => $cpf,
                 'password_plain' => $password // Store plain for display
             ];
 
@@ -828,6 +836,12 @@ function step_3_admin(): void {
     echo '<label>E-mail <span class="required">*</span></label>';
     echo '<input type="email" name="admin_email" value="' . htmlspecialchars($data['email'] ?? '') . '" required autocomplete="email">';
     echo '<div class="input-help">Este será seu login para acessar o sistema</div>';
+    echo '</div>';
+
+    echo '<div class="form-group">';
+    echo '<label>CPF <span class="required">*</span></label>';
+    echo '<input type="text" name="admin_cpf" value="' . htmlspecialchars($data['cpf'] ?? '') . '" required pattern="[0-9]{3}\.?[0-9]{3}\.?[0-9]{3}-?[0-9]{2}" placeholder="000.000.000-00" maxlength="14">';
+    echo '<div class="input-help">Apenas números, com ou sem pontos e traço</div>';
     echo '</div>';
 
     echo '<div class="form-group">';
@@ -1172,13 +1186,13 @@ function step_4_install(): void {
                     $now = date('Y-m-d H:i:s');
 
                     // Use prepared statement to prevent any corruption
-                    $stmt = $mysqli->prepare("INSERT INTO `employees` (`name`, `email`, `password`, `role`, `active`, `created_at`) VALUES (?, ?, ?, 'admin', 1, ?)");
+                    $stmt = $mysqli->prepare("INSERT INTO `employees` (`name`, `email`, `cpf`, `password`, `role`, `active`, `created_at`) VALUES (?, ?, ?, ?, 'admin', 1, ?)");
 
                     if (!$stmt) {
                         throw new Exception('Erro ao preparar statement: ' . $mysqli->error);
                     }
 
-                    $stmt->bind_param('ssss', $admin['name'], $admin['email'], $password_hash, $now);
+                    $stmt->bind_param('sssss', $admin['name'], $admin['email'], $admin['cpf'], $password_hash, $now);
 
                     if (!$stmt->execute()) {
                         throw new Exception('Erro ao criar administrador: ' . $stmt->error);
