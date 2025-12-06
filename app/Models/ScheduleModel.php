@@ -105,12 +105,33 @@ class ScheduleModel extends Model
     /**
      * Check if employee is already scheduled for a date
      */
-    public function isEmployeeScheduled(int $employeeId, string $date): bool
+    public function isEmployeeScheduled(int $employeeId, string $date, ?int $excludeScheduleId = null): bool
     {
-        return $this->where('employee_id', $employeeId)
+        $query = $this->where('employee_id', $employeeId)
             ->where('date', $date)
-            ->where('status !=', 'cancelled')
-            ->countAllResults() > 0;
+            ->where('status !=', 'cancelled');
+
+        if ($excludeScheduleId !== null) {
+            $query->where('id !=', $excludeScheduleId);
+        }
+
+        return $query->countAllResults() > 0;
+    }
+
+    /**
+     * Get employees assigned to a specific shift
+     */
+    public function getEmployeesByShift(int $shiftId): array
+    {
+        return $this->select('employees.*,
+                             COUNT(schedules.id) as total_schedules,
+                             MIN(CASE WHEN schedules.date >= CURDATE() THEN schedules.date END) as next_schedule')
+            ->join('employees', 'employees.id = schedules.employee_id')
+            ->where('schedules.shift_id', $shiftId)
+            ->where('schedules.status !=', 'cancelled')
+            ->groupBy('employees.id')
+            ->orderBy('employees.name', 'ASC')
+            ->findAll();
     }
 
     /**

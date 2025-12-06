@@ -181,9 +181,32 @@ class WorkShiftModel extends Model
     }
 
     /**
+     * Find shifts that overlap with given time range
+     */
+    public function findOverlappingShifts(string $startTime, string $endTime, ?int $excludeId = null): array
+    {
+        $query = $this->where('active', 1);
+
+        if ($excludeId !== null) {
+            $query->where('id !=', $excludeId);
+        }
+
+        $allShifts = $query->findAll();
+        $overlapping = [];
+
+        foreach ($allShifts as $shift) {
+            if ($this->hasTimeOverlap($startTime, $endTime, $shift->start_time, $shift->end_time)) {
+                $overlapping[] = $shift;
+            }
+        }
+
+        return $overlapping;
+    }
+
+    /**
      * Clone a shift
      */
-    public function cloneShift(int $shiftId): ?int
+    public function cloneShift(int $shiftId, ?string $newName = null): ?int
     {
         $shift = $this->find($shiftId);
 
@@ -192,7 +215,7 @@ class WorkShiftModel extends Model
         }
 
         $newShift = [
-            'name' => $shift->name . ' (Cópia)',
+            'name' => $newName ?? ($shift->name . ' (Cópia)'),
             'description' => $shift->description,
             'start_time' => $shift->start_time,
             'end_time' => $shift->end_time,
